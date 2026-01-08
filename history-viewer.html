@@ -1,0 +1,4955 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Claude History Viewer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html, body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+        }
+
+        :root {
+            --bg-primary: #fafafa;
+            --bg-secondary: #ffffff;
+            --bg-tertiary: #f5f5f5;
+            --bg-user: #f0f7ff;
+            --bg-assistant: #ffffff;
+            --text-primary: #1a1a1a;
+            --text-secondary: #666666;
+            --text-muted: #999999;
+            --border-color: #e5e5e5;
+            --accent: #2563eb;
+            --accent-light: #dbeafe;
+            --assistant-accent: #8b5cf6;
+            --assistant-light: #ede9fe;
+            --success: #10b981;
+            --shadow-sm: 0 1px 2px rgba(0,0,0,0.04);
+            --shadow-md: 0 4px 12px rgba(0,0,0,0.08);
+            --shadow-lg: 0 8px 24px rgba(0,0,0,0.12);
+            --radius-sm: 6px;
+            --radius-md: 10px;
+            --radius-lg: 16px;
+            --transition: all 0.2s ease;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+
+        /* Layout */
+        .app {
+            display: flex;
+            width: 100%;
+            height: 100vh;
+            min-height: 100vh;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: 380px;
+            background: var(--bg-secondary);
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            flex-shrink: 0;
+        }
+
+        .sidebar-header {
+            padding: 20px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .logo-icon {
+            width: 36px;
+            height: 36px;
+            background: linear-gradient(135deg, var(--accent), #7c3aed);
+            border-radius: var(--radius-sm);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 600;
+            font-size: 16px;
+        }
+
+        .logo-text {
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .stats-row {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 16px;
+        }
+
+        .stat {
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 20px;
+            font-weight: 600;
+            color: var(--accent);
+        }
+
+        .stat-label {
+            font-size: 11px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+        }
+
+        .search-box {
+            position: relative;
+        }
+
+        .search-box input {
+            width: 100%;
+            padding: 10px 14px 10px 40px;
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            font-size: 14px;
+            background: var(--bg-tertiary);
+            transition: var(--transition);
+        }
+
+        .search-box input:focus {
+            outline: none;
+            border-color: var(--accent);
+            background: var(--bg-secondary);
+        }
+
+        .search-box::before {
+            content: '';
+            position: absolute;
+            left: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 16px;
+            height: 16px;
+            background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23999'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z'/%3E%3C/svg%3E") center/contain no-repeat;
+        }
+
+        /* Filters */
+        .filters {
+            padding: 12px 20px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .filter-btn {
+            padding: 6px 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 20px;
+            background: var(--bg-secondary);
+            font-size: 12px;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: var(--transition);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .filter-btn:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        .filter-btn.active {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: white;
+        }
+
+        .filter-btn svg {
+            width: 14px;
+            height: 14px;
+        }
+
+        /* Date Filter Dropdown */
+        .date-filter {
+            position: relative;
+        }
+
+        .date-dropdown {
+            position: absolute;
+            top: calc(100% + 8px);
+            left: 0;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            box-shadow: var(--shadow-lg);
+            padding: 16px;
+            z-index: 100;
+            display: none;
+            min-width: 260px;
+        }
+
+        .date-dropdown.show {
+            display: block;
+        }
+
+        .date-quick-filters {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-bottom: 12px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .date-quick-btn {
+            padding: 6px 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 14px;
+            background: var(--bg-secondary);
+            font-size: 11px;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .date-quick-btn:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        .date-quick-btn.active {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: white;
+        }
+
+        .date-dropdown label {
+            display: block;
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-muted);
+            margin-bottom: 4px;
+        }
+
+        .date-inputs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+
+        .date-input-group {
+            flex: 1;
+        }
+
+        .date-dropdown input {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-sm);
+            font-size: 13px;
+        }
+
+        .date-dropdown input:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+
+        .date-dropdown-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .date-dropdown-actions button {
+            flex: 1;
+            padding: 8px;
+            border: none;
+            border-radius: var(--radius-sm);
+            font-size: 12px;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .date-dropdown-actions .apply {
+            background: var(--accent);
+            color: white;
+        }
+
+        .date-dropdown-actions .apply:hover {
+            background: #1d4ed8;
+        }
+
+        .date-dropdown-actions .clear {
+            background: var(--bg-tertiary);
+            color: var(--text-secondary);
+        }
+
+        .date-dropdown-actions .clear:hover {
+            background: var(--border-color);
+        }
+
+        /* Session List */
+        .session-list {
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        .session-group {
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .session-group-header {
+            padding: 10px 20px;
+            background: var(--bg-tertiary);
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        .session-item {
+            padding: 14px 20px;
+            border-bottom: 1px solid var(--border-color);
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .session-item:hover {
+            background: var(--bg-tertiary);
+        }
+
+        .session-item.active {
+            background: var(--accent-light);
+            border-left: 3px solid var(--accent);
+        }
+
+        .session-item-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 6px;
+        }
+
+        .session-time {
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        .session-messages {
+            font-size: 11px;
+            color: var(--text-muted);
+            background: var(--bg-tertiary);
+            padding: 2px 8px;
+            border-radius: 10px;
+        }
+
+        .session-messages.history-badge {
+            background: #fef3c7;
+            color: #d97706;
+        }
+
+        .session-item.history-only {
+            border-left: 3px solid #f59e0b;
+        }
+
+        .session-preview {
+            font-size: 13px;
+            color: var(--text-secondary);
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            line-height: 1.5;
+        }
+
+        .session-project {
+            font-size: 11px;
+            color: var(--accent);
+            margin-top: 6px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        /* Main Content */
+        .main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            min-width: 0; /* Prevent flex item from overflowing */
+            width: 100%;
+        }
+
+        .main-header {
+            padding: 16px 24px;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .main-title {
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        .main-meta {
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        /* Conversation View */
+        #conversationView {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            min-height: 0;
+            position: relative;
+        }
+
+        .conversation {
+            flex: 1;
+            overflow-y: auto;
+            overflow-x: hidden;
+            padding: 24px;
+            min-height: 0;
+            -webkit-overflow-scrolling: touch;
+            overscroll-behavior-y: contain;
+            touch-action: pan-y;
+            scroll-behavior: smooth;
+        }
+
+        .message {
+            margin-bottom: 20px;
+            max-width: 900px;
+        }
+
+        /* Wider messages on large desktop screens */
+        @media (min-width: 1400px) {
+            .message {
+                max-width: 1100px;
+            }
+        }
+
+        @media (min-width: 1800px) {
+            .message {
+                max-width: 1400px;
+            }
+        }
+
+        .message-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 8px;
+        }
+
+        .message-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .message.user .message-avatar {
+            background: var(--accent-light);
+            color: var(--accent);
+        }
+
+        .message.assistant .message-avatar {
+            background: var(--assistant-light);
+            color: var(--assistant-accent);
+        }
+
+        .message-role {
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .message.user .message-role {
+            color: var(--accent);
+        }
+
+        .message.assistant .message-role {
+            color: var(--assistant-accent);
+        }
+
+        .message-time {
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+
+        .message-content {
+            padding: 16px;
+            border-radius: var(--radius-md);
+            font-size: 14px;
+            line-height: 1.7;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        .message.user .message-content {
+            background: var(--bg-user);
+            border: 1px solid #d1e3f6;
+        }
+
+        .message.assistant .message-content {
+            background: var(--bg-assistant);
+            border: 1px solid var(--border-color);
+        }
+
+        .message-content mark {
+            background: #fef08a;
+            padding: 1px 2px;
+            border-radius: 2px;
+        }
+
+        .message-content mark.current-match {
+            background: #f97316;
+            color: white;
+            outline: 2px solid #f97316;
+            outline-offset: 1px;
+        }
+
+        /* Tool Use */
+        .tool-use {
+            margin-top: 12px;
+            padding: 12px;
+            background: var(--bg-tertiary);
+            border-radius: var(--radius-sm);
+            font-size: 12px;
+        }
+
+        .tool-use-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+            color: var(--text-secondary);
+        }
+
+        .tool-use-header svg {
+            width: 14px;
+            height: 14px;
+        }
+
+        .tool-use-name {
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .tool-use-input {
+            font-family: 'SF Mono', Monaco, monospace;
+            font-size: 11px;
+            background: var(--bg-secondary);
+            padding: 8px;
+            border-radius: 4px;
+            max-height: 150px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+
+        /* Tool Use Collapsible */
+        .tool-use.collapsed .tool-use-input {
+            display: none;
+        }
+
+        .tool-use-toggle {
+            cursor: pointer;
+            padding: 2px 6px;
+            font-size: 10px;
+            color: var(--text-muted);
+            background: var(--bg-secondary);
+            border: none;
+            border-radius: 4px;
+            margin-left: auto;
+            transition: all 0.15s ease;
+        }
+
+        .tool-use-toggle:hover {
+            background: var(--border-color);
+            color: var(--text-primary);
+        }
+
+        .tool-use-toggle svg {
+            width: 12px;
+            height: 12px;
+            transition: transform 0.2s ease;
+        }
+
+        .tool-use.collapsed .tool-use-toggle svg {
+            transform: rotate(-90deg);
+        }
+
+        /* Tool Call Global Toggle */
+        .tool-call-toggle-container {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-left: 16px;
+            padding: 4px 8px;
+            background: var(--bg-tertiary);
+            border-radius: 6px;
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        .tool-call-toggle-container input[type="checkbox"] {
+            width: 14px;
+            height: 14px;
+            cursor: pointer;
+            accent-color: var(--accent-color);
+        }
+
+        .tool-call-toggle-container label {
+            cursor: pointer;
+            user-select: none;
+        }
+
+        /* Hidden tool uses */
+        .conversation.hide-tools .tool-use {
+            display: none;
+        }
+
+        .conversation.hide-tools .tool-indicator {
+            display: none;
+        }
+
+        .conversation.hide-tools .tool-only-message {
+            display: none;
+        }
+
+        /* Tool indicator text style */
+        .tool-indicator {
+            display: block;
+            color: var(--text-muted);
+            font-size: 12px;
+            font-style: italic;
+            margin: 4px 0;
+        }
+
+        /* Markdown rendered content styles */
+        .message-content.markdown-rendered {
+            line-height: 1.6;
+        }
+
+        .message-content.markdown-rendered h1 {
+            font-size: 1.8em;
+            font-weight: 700;
+            margin: 16px 0 8px 0;
+            padding-bottom: 6px;
+            border-bottom: 2px solid var(--border-color);
+            color: var(--text-primary);
+        }
+
+        .message-content.markdown-rendered h2 {
+            font-size: 1.5em;
+            font-weight: 600;
+            margin: 14px 0 6px 0;
+            padding-bottom: 4px;
+            border-bottom: 1px solid var(--border-color);
+            color: var(--text-primary);
+        }
+
+        .message-content.markdown-rendered h3 {
+            font-size: 1.25em;
+            font-weight: 600;
+            margin: 12px 0 6px 0;
+            color: var(--text-primary);
+        }
+
+        .message-content.markdown-rendered h4 {
+            font-size: 1.1em;
+            font-weight: 600;
+            margin: 10px 0 4px 0;
+            color: var(--text-primary);
+        }
+
+        .message-content.markdown-rendered h5,
+        .message-content.markdown-rendered h6 {
+            font-size: 1em;
+            font-weight: 600;
+            margin: 8px 0 4px 0;
+            color: var(--text-secondary);
+        }
+
+        .message-content.markdown-rendered p {
+            margin: 8px 0;
+        }
+
+        .message-content.markdown-rendered strong {
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .message-content.markdown-rendered em {
+            font-style: italic;
+        }
+
+        .message-content.markdown-rendered code {
+            font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+            font-size: 0.9em;
+            background: var(--bg-tertiary);
+            padding: 2px 6px;
+            border-radius: 4px;
+            color: #e06c75;
+        }
+
+        .message-content.markdown-rendered pre {
+            background: var(--bg-tertiary);
+            padding: 12px 16px;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin: 12px 0;
+            border: 1px solid var(--border-color);
+        }
+
+        .message-content.markdown-rendered pre code {
+            background: none;
+            padding: 0;
+            color: var(--text-primary);
+            font-size: 13px;
+            line-height: 1.5;
+        }
+
+        .message-content.markdown-rendered blockquote {
+            border-left: 4px solid var(--accent-color);
+            margin: 12px 0;
+            padding: 8px 16px;
+            background: var(--bg-tertiary);
+            border-radius: 0 8px 8px 0;
+            color: var(--text-secondary);
+        }
+
+        .message-content.markdown-rendered blockquote p {
+            margin: 4px 0;
+        }
+
+        .message-content.markdown-rendered ul,
+        .message-content.markdown-rendered ol {
+            margin: 8px 0;
+            padding-left: 24px;
+        }
+
+        .message-content.markdown-rendered li {
+            margin: 4px 0;
+        }
+
+        .message-content.markdown-rendered li > ul,
+        .message-content.markdown-rendered li > ol {
+            margin: 4px 0;
+        }
+
+        .message-content.markdown-rendered a {
+            color: var(--accent-color);
+            text-decoration: none;
+        }
+
+        .message-content.markdown-rendered a:hover {
+            text-decoration: underline;
+        }
+
+        .message-content.markdown-rendered hr {
+            border: none;
+            border-top: 1px solid var(--border-color);
+            margin: 16px 0;
+        }
+
+        .message-content.markdown-rendered table {
+            border-collapse: collapse;
+            width: 100%;
+            margin: 12px 0;
+            font-size: 14px;
+        }
+
+        .message-content.markdown-rendered th,
+        .message-content.markdown-rendered td {
+            border: 1px solid var(--border-color);
+            padding: 8px 12px;
+            text-align: left;
+        }
+
+        .message-content.markdown-rendered th {
+            background: var(--bg-tertiary);
+            font-weight: 600;
+        }
+
+        .message-content.markdown-rendered tr:nth-child(even) {
+            background: var(--bg-secondary);
+        }
+
+        .message-content.markdown-rendered img {
+            max-width: 100%;
+            border-radius: 8px;
+            margin: 8px 0;
+        }
+
+        .message-content.markdown-rendered del {
+            text-decoration: line-through;
+            color: var(--text-muted);
+        }
+
+        /* Task list (checkbox) style */
+        .message-content.markdown-rendered input[type="checkbox"] {
+            margin-right: 6px;
+        }
+
+        /* Toast notification */
+        .toast {
+            position: fixed;
+            bottom: 80px;
+            left: 50%;
+            transform: translateX(-50%) translateY(100px);
+            background: var(--text-primary);
+            color: var(--bg-primary);
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            z-index: 10000;
+            opacity: 0;
+            transition: all 0.3s ease;
+            pointer-events: none;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+
+        .toast.show {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+
+        /* Scroll buttons */
+        .scroll-buttons {
+            position: fixed;
+            right: 32px;
+            bottom: 32px;
+            display: none;
+            flex-direction: column;
+            gap: 10px;
+            z-index: 100;
+        }
+
+        .scroll-buttons.visible {
+            display: flex;
+        }
+
+        .scroll-btn {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            border: none;
+            background: var(--accent);
+            color: white;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+            transition: all 0.2s ease;
+            -webkit-tap-highlight-color: transparent;
+            touch-action: manipulation;
+        }
+
+        .scroll-btn:hover {
+            background: var(--accent-hover);
+            transform: scale(1.1);
+            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
+        }
+
+        .scroll-btn:active {
+            transform: scale(0.95);
+        }
+
+        .scroll-btn svg {
+            width: 24px;
+            height: 24px;
+            pointer-events: none;
+        }
+
+        @media (max-width: 768px) {
+            .scroll-buttons {
+                right: 16px;
+                bottom: 90px;
+                gap: 12px;
+            }
+
+            .scroll-btn {
+                width: 50px;
+                height: 50px;
+                box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+            }
+
+            .scroll-btn svg {
+                width: 26px;
+                height: 26px;
+            }
+        }
+
+        /* Empty State */
+        .empty-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: var(--text-muted);
+            text-align: center;
+            padding: 40px;
+        }
+
+        .empty-state svg {
+            width: 64px;
+            height: 64px;
+            margin-bottom: 16px;
+            opacity: 0.5;
+        }
+
+        .empty-state-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            margin-bottom: 8px;
+        }
+
+        /* Loading */
+        .loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 40px;
+        }
+
+        .loading-spinner {
+            width: 32px;
+            height: 32px;
+            border: 3px solid var(--border-color);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--border-color);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--text-muted);
+        }
+
+        /* Mobile Toggle Button */
+        .mobile-menu-btn {
+            display: none;
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--accent), #7c3aed);
+            border: none;
+            color: white;
+            box-shadow: 0 4px 16px rgba(37, 99, 235, 0.4);
+            z-index: 1001;
+            cursor: pointer;
+            transition: var(--transition);
+            padding: 0;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .mobile-menu-btn:hover {
+            transform: scale(1.05);
+        }
+
+        .mobile-menu-btn:active {
+            transform: scale(0.95);
+        }
+
+        .mobile-menu-btn svg {
+            width: 24px;
+            height: 24px;
+        }
+
+        .mobile-menu-btn .icon-menu,
+        .mobile-menu-btn .icon-close {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .mobile-menu-btn .icon-close {
+            display: none;
+        }
+
+        .mobile-menu-btn.active .icon-menu {
+            display: none;
+        }
+
+        .mobile-menu-btn.active .icon-close {
+            display: flex;
+        }
+
+        /* Mobile Overlay */
+        .mobile-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 999;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            pointer-events: none;
+        }
+
+        .mobile-overlay.show {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        /* Mobile Header Actions Menu */
+        .mobile-actions-btn {
+            display: none;
+            padding: 12px;
+            border: 2px solid var(--accent);
+            border-radius: var(--radius-md);
+            background: var(--accent-light);
+            color: var(--accent);
+            cursor: pointer;
+            flex-shrink: 0;
+            align-items: center;
+            justify-content: center;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: rgba(37, 99, 235, 0.3);
+            min-width: 44px;
+            min-height: 44px;
+            position: relative;
+            z-index: 100;
+        }
+
+        .mobile-actions-btn:active {
+            background: var(--accent);
+            color: white;
+            transform: scale(0.95);
+        }
+
+        .mobile-actions-btn svg {
+            width: 24px;
+            height: 24px;
+            display: block;
+            pointer-events: none;
+        }
+
+        /* Desktop: show session-id-row, hide mobile-actions-btn */
+        @media (min-width: 481px) {
+            .mobile-actions-btn {
+                display: none !important;
+            }
+        }
+
+        .mobile-actions-menu {
+            display: none;
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: var(--bg-secondary);
+            border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+            box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.15);
+            z-index: 1002;
+            padding: 16px;
+            padding-bottom: calc(16px + env(safe-area-inset-bottom));
+            transform: translateY(100%);
+            transition: transform 0.3s ease;
+        }
+
+        .mobile-actions-menu.show {
+            transform: translateY(0);
+        }
+
+        .mobile-actions-menu-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .mobile-actions-menu-title {
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        .mobile-actions-close {
+            padding: 8px;
+            border: none;
+            background: none;
+            color: var(--text-muted);
+            cursor: pointer;
+        }
+
+        .mobile-actions-close svg {
+            width: 24px;
+            height: 24px;
+            display: block;
+        }
+
+        .mobile-actions-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+        }
+
+        .mobile-action-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            padding: 16px 8px;
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            background: var(--bg-tertiary);
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .mobile-action-item:hover, .mobile-action-item:active {
+            background: var(--accent-light);
+            border-color: var(--accent);
+        }
+
+        .mobile-action-item svg {
+            width: 24px;
+            height: 24px;
+            color: var(--text-secondary);
+        }
+
+        .mobile-action-item span {
+            font-size: 11px;
+            color: var(--text-secondary);
+            text-align: center;
+        }
+
+        .mobile-action-item.danger {
+            border-color: #fecaca;
+            background: #fef2f2;
+        }
+
+        .mobile-action-item.danger svg {
+            color: #ef4444;
+        }
+
+        .mobile-action-item.danger span {
+            color: #ef4444;
+        }
+
+        /* Responsive - Tablet */
+        @media (max-width: 900px) {
+            .sidebar {
+                width: 340px;
+                position: fixed;
+                left: 0;
+                top: 0;
+                bottom: 0;
+                z-index: 1000;
+                transform: translateX(-100%);
+                transition: transform 0.3s ease;
+            }
+
+            .sidebar.open {
+                transform: translateX(0);
+            }
+
+            .main {
+                width: 100%;
+            }
+
+            .mobile-menu-btn {
+                display: flex;
+            }
+
+            .mobile-overlay {
+                display: block;
+            }
+        }
+
+        /* Responsive - Mobile (iPhone Air optimized: ~375px CSS width) */
+        @media (max-width: 480px) {
+            /* Safe area support - only for app container, not body */
+            .app {
+                padding-top: env(safe-area-inset-top);
+            }
+
+            .sidebar {
+                width: 100%;
+                padding-top: env(safe-area-inset-top);
+            }
+
+            .sidebar-header {
+                padding: 16px;
+            }
+
+            .logo {
+                margin-bottom: 12px;
+            }
+
+            .logo-icon {
+                width: 32px;
+                height: 32px;
+                font-size: 14px;
+            }
+
+            .logo-text {
+                font-size: 16px;
+            }
+
+            .stats-row {
+                gap: 12px;
+                margin-bottom: 12px;
+            }
+
+            .stat-value {
+                font-size: 18px;
+            }
+
+            .stat-label {
+                font-size: 10px;
+            }
+
+            .search-box input {
+                padding: 12px 14px 12px 40px;
+                font-size: 16px; /* Prevents iOS zoom on focus */
+            }
+
+            .filters {
+                padding: 10px 16px;
+                gap: 6px;
+            }
+
+            .filter-btn {
+                padding: 8px 12px;
+                font-size: 13px;
+            }
+
+            .session-group-header {
+                padding: 8px 16px;
+                font-size: 11px;
+            }
+
+            .session-item {
+                padding: 14px 16px;
+            }
+
+            .session-preview {
+                font-size: 14px;
+                -webkit-line-clamp: 3;
+            }
+
+            .session-project {
+                font-size: 12px;
+            }
+
+            /* Main content mobile - FIXED HEADER LAYOUT */
+            .main-header {
+                padding: 12px 16px;
+                padding-right: 56px; /* Space for actions button */
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 4px;
+                position: relative;
+                min-height: 60px;
+            }
+
+            .main-header > div:first-child {
+                width: 100%;
+                padding-right: 0;
+            }
+
+            .main-title {
+                font-size: 15px;
+                line-height: 1.3;
+                word-break: break-word;
+            }
+
+            .main-meta {
+                font-size: 11px;
+            }
+
+            /* Hide desktop session ID row, use mobile actions instead */
+            .session-id-row {
+                display: none !important;
+            }
+
+            /* Mobile actions button - FIXED POSITIONING */
+            .mobile-actions-btn {
+                display: flex !important;
+                position: absolute !important;
+                right: 12px;
+                top: 12px;
+                transform: none;
+                width: 40px;
+                height: 40px;
+                z-index: 10;
+            }
+
+            /* Conversation search - ENSURE TOUCHABLE */
+            .conversation-search {
+                padding: 12px 16px;
+                position: relative;
+                z-index: 50;
+                background: var(--bg-secondary);
+                border-bottom: 1px solid var(--border-color);
+            }
+
+            .conversation-search input {
+                width: 100%;
+                max-width: 100%;
+                font-size: 16px; /* Prevents iOS zoom */
+                padding: 14px 16px;
+                -webkit-appearance: none;
+                appearance: none;
+                border-radius: var(--radius-md);
+                border: 2px solid var(--border-color);
+                background: var(--bg-tertiary);
+                touch-action: manipulation !important;
+                pointer-events: auto !important;
+                -webkit-user-select: text !important;
+                user-select: text !important;
+            }
+
+            .conversation-search input:focus {
+                border-color: var(--accent);
+                background: white;
+                outline: none;
+            }
+
+            .conversation-search input::placeholder {
+                color: var(--text-muted);
+            }
+
+            .search-results-info {
+                font-size: 11px;
+            }
+
+            .conversation {
+                padding: 16px;
+            }
+
+            .message {
+                margin-bottom: 16px;
+            }
+
+            .message-header {
+                gap: 8px;
+                margin-bottom: 6px;
+            }
+
+            .message-avatar {
+                width: 28px;
+                height: 28px;
+                font-size: 12px;
+            }
+
+            .message-role {
+                font-size: 12px;
+            }
+
+            .message-time {
+                font-size: 10px;
+            }
+
+            .message-content {
+                padding: 14px;
+                font-size: 14px;
+                line-height: 1.7;
+                /* CRITICAL: Enable text selection on mobile */
+                -webkit-user-select: text !important;
+                user-select: text !important;
+                -webkit-touch-callout: default !important;
+                touch-action: auto !important;
+                cursor: text;
+            }
+
+            .tool-use {
+                margin-top: 10px;
+                padding: 10px;
+            }
+
+            .tool-use-header {
+                font-size: 11px;
+            }
+
+            .tool-use-input {
+                font-size: 10px;
+                max-height: 100px;
+            }
+
+            /* Mobile FAB position */
+            .mobile-menu-btn {
+                bottom: calc(16px + env(safe-area-inset-bottom));
+                right: 16px;
+                width: 52px;
+                height: 52px;
+            }
+
+            .mobile-menu-btn svg {
+                width: 22px;
+                height: 22px;
+            }
+
+            /* Empty state mobile */
+            .empty-state {
+                padding: 24px;
+            }
+
+            .empty-state svg {
+                width: 48px;
+                height: 48px;
+            }
+
+            .empty-state-title {
+                font-size: 16px;
+            }
+
+            .empty-state p {
+                font-size: 13px;
+            }
+
+            /* Date dropdown mobile - HIGH Z-INDEX */
+            .date-dropdown {
+                position: fixed;
+                top: auto;
+                bottom: 0;
+                left: 0;
+                right: 0;
+                border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+                padding: 20px;
+                padding-bottom: calc(20px + env(safe-area-inset-bottom));
+                min-width: auto;
+                max-height: 70vh;
+                overflow-y: auto;
+                z-index: 1100;
+                box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.2);
+            }
+
+            .date-quick-filters {
+                justify-content: center;
+            }
+
+            .date-quick-btn {
+                padding: 10px 14px;
+                font-size: 13px;
+            }
+
+            .date-inputs {
+                flex-direction: column;
+                gap: 12px;
+            }
+
+            .date-dropdown input {
+                padding: 12px;
+                font-size: 16px;
+                -webkit-appearance: none;
+                appearance: none;
+            }
+
+            .date-dropdown-actions button {
+                padding: 14px;
+                font-size: 14px;
+            }
+
+            /* Project dropdown mobile - HIGH Z-INDEX & VISIBILITY */
+            .project-dropdown {
+                position: fixed;
+                top: auto;
+                bottom: 0;
+                left: 0;
+                right: 0;
+                border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+                padding: 16px;
+                padding-bottom: calc(16px + env(safe-area-inset-bottom));
+                min-width: auto;
+                max-height: 60vh;
+                overflow-y: auto;
+                -webkit-overflow-scrolling: touch;
+                touch-action: pan-y;
+                z-index: 1100;
+                box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.3);
+                background: var(--bg-secondary);
+                border-top: 3px solid var(--accent);
+            }
+
+            /* Add title bar for mobile dropdowns */
+            .project-dropdown::after {
+                content: '프로젝트 선택';
+                display: block;
+                position: absolute;
+                top: 0;
+                left: 0;
+                right: 0;
+                padding: 12px 16px;
+                background: var(--accent);
+                color: white;
+                font-weight: 600;
+                font-size: 14px;
+                text-align: center;
+                margin: -16px -16px 16px -16px;
+                border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+            }
+
+            .project-dropdown {
+                padding-top: 56px; /* Space for title */
+            }
+
+            /* Add backdrop for dropdowns on mobile */
+            .date-dropdown.show::before,
+            .project-dropdown.show::before {
+                content: '';
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background: rgba(0, 0, 0, 0.5);
+                z-index: -1;
+            }
+
+            .project-option {
+                padding: 14px 12px;
+                font-size: 14px;
+                border-bottom: 1px solid var(--border-color);
+                touch-action: manipulation;
+            }
+
+            .project-option:last-child {
+                border-bottom: none;
+            }
+
+            .project-option.selected {
+                background: var(--accent-light);
+                border-left: 4px solid var(--accent);
+            }
+
+            /* Scrollbar hide on mobile */
+            ::-webkit-scrollbar {
+                width: 0;
+                display: none;
+            }
+        }
+
+        /* Extra small devices */
+        @media (max-width: 360px) {
+            .mobile-actions-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .stats-row {
+                flex-wrap: wrap;
+            }
+
+            .stat {
+                flex: 1;
+                min-width: 60px;
+            }
+        }
+
+        /* Touch-specific improvements */
+        @media (pointer: coarse) {
+            .filter-btn,
+            .date-quick-btn,
+            .project-option,
+            .session-item {
+                min-height: 44px;
+            }
+
+            .mobile-action-item {
+                min-height: 80px;
+            }
+
+            /* Prevent text selection on interactive elements only */
+            .session-item,
+            .filter-btn,
+            .mobile-action-item,
+            .mobile-menu-btn,
+            .mobile-actions-btn {
+                -webkit-user-select: none;
+                user-select: none;
+                -webkit-touch-callout: none;
+            }
+
+            /* Smooth scrolling - CRITICAL for touch scroll */
+            .session-list,
+            .conversation,
+            .project-dropdown,
+            .date-dropdown {
+                -webkit-overflow-scrolling: touch;
+                overscroll-behavior: contain;
+            }
+
+            /* Active states for touch feedback */
+            .session-item:active {
+                background: var(--bg-tertiary);
+            }
+
+            .mobile-action-item:active {
+                transform: scale(0.98);
+            }
+        }
+
+        /* CRITICAL: Enable touch actions for scrollable areas */
+        .conversation {
+            touch-action: pan-y !important;
+            -webkit-overflow-scrolling: touch;
+            overscroll-behavior-y: contain;
+        }
+
+        .session-list {
+            touch-action: pan-y !important;
+        }
+
+        /* CRITICAL: Allow text selection in message content */
+        .message-content {
+            -webkit-user-select: text !important;
+            user-select: text !important;
+            -webkit-touch-callout: default !important;
+            touch-action: auto !important;
+        }
+
+        /* Ensure interactive elements are touchable */
+        .mobile-actions-btn,
+        .mobile-menu-btn,
+        .filter-btn,
+        .mobile-action-item {
+            touch-action: manipulation;
+            cursor: pointer;
+            -webkit-tap-highlight-color: rgba(0, 0, 0, 0.1);
+        }
+
+        /* Ensure search inputs are touchable */
+        #conversationSearch,
+        #sessionSearch {
+            touch-action: manipulation !important;
+            -webkit-user-select: text !important;
+            user-select: text !important;
+            pointer-events: auto !important;
+        }
+
+        /* Ensure message content is always selectable */
+        .message-content {
+            -webkit-user-select: text;
+            user-select: text;
+        }
+
+        /* Project Filter Dropdown */
+        .project-filter {
+            position: relative;
+        }
+
+        .project-dropdown {
+            display: none;
+        }
+
+        .project-dropdown.show {
+            display: block;
+        }
+
+        @media (min-width: 481px) {
+            .project-dropdown {
+                position: absolute;
+                top: calc(100% + 8px);
+                left: 0;
+                background: var(--bg-secondary);
+                border: 1px solid var(--border-color);
+                border-radius: var(--radius-md);
+                box-shadow: var(--shadow-lg);
+                padding: 8px;
+                z-index: 100;
+                display: none;
+                min-width: 280px;
+                max-height: 300px;
+                overflow-y: auto;
+            }
+
+            .project-dropdown.show {
+                display: block;
+            }
+
+            .project-option {
+                padding: 8px 12px;
+                border-radius: var(--radius-sm);
+                cursor: pointer;
+                font-size: 12px;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+
+            .project-option:hover {
+                background: var(--bg-tertiary);
+            }
+
+            .project-option.selected {
+                background: var(--accent-light);
+                color: var(--accent);
+            }
+
+            .project-count {
+                font-size: 10px;
+                background: var(--bg-tertiary);
+                padding: 2px 6px;
+                border-radius: 8px;
+                color: var(--text-muted);
+            }
+
+            /* Conversation Search */
+            .conversation-search {
+                padding: 12px 24px;
+                background: var(--bg-secondary);
+                border-bottom: 1px solid var(--border-color);
+            }
+
+            .conversation-search input {
+                width: 100%;
+                max-width: 400px;
+                padding: 8px 12px;
+                border: 1px solid var(--border-color);
+                border-radius: var(--radius-sm);
+                font-size: 13px;
+            }
+
+            .conversation-search input:focus {
+                outline: none;
+                border-color: var(--accent);
+            }
+
+            .search-results-info {
+                font-size: 12px;
+                color: var(--text-muted);
+                margin-top: 8px;
+            }
+        }
+
+        /* Session ID and Copy Button */
+        .session-id-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 6px;
+            flex-wrap: wrap;
+        }
+
+        .session-id {
+            font-family: 'SF Mono', Monaco, monospace;
+            font-size: 11px;
+            color: var(--text-muted);
+            background: var(--bg-tertiary);
+            padding: 4px 8px;
+            border-radius: var(--radius-sm);
+            max-width: 200px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .copy-resume-btn {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 10px;
+            border: 1px solid var(--accent);
+            border-radius: var(--radius-sm);
+            background: var(--accent-light);
+            color: var(--accent);
+            font-size: 11px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: var(--transition);
+            white-space: nowrap;
+        }
+
+        .copy-resume-btn:hover {
+            background: var(--accent);
+            color: white;
+        }
+
+        .copy-resume-btn.copied {
+            background: var(--success);
+            border-color: var(--success);
+            color: white;
+        }
+
+        .copy-resume-btn.skip-perms {
+            background: #fef3c7;
+            border-color: #f59e0b;
+            color: #d97706;
+        }
+
+        .copy-resume-btn.skip-perms:hover {
+            background: #f59e0b;
+            color: white;
+        }
+
+        .copy-resume-btn svg {
+            width: 12px;
+            height: 12px;
+        }
+
+        /* Resume Options Menu */
+        .resume-options-menu {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            margin-top: 4px;
+            background: white;
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            z-index: 1000;
+            min-width: 160px;
+            display: none;
+        }
+
+        .resume-options-menu.show {
+            display: block;
+        }
+
+        .resume-options-menu button {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            width: 100%;
+            padding: 10px 14px;
+            border: none;
+            background: none;
+            font-size: 13px;
+            color: var(--text);
+            cursor: pointer;
+            text-align: left;
+        }
+
+        .resume-options-menu button:hover {
+            background: var(--hover);
+        }
+
+        .resume-options-menu button:first-child {
+            border-radius: var(--radius) var(--radius) 0 0;
+        }
+
+        .resume-options-menu button:last-child {
+            border-radius: 0 0 var(--radius) var(--radius);
+        }
+
+        .resume-options-menu .divider {
+            height: 1px;
+            background: var(--border);
+            margin: 4px 0;
+        }
+
+        .resume-btn-wrapper {
+            position: relative;
+            display: inline-block;
+        }
+
+        /* Delete Button */
+        .delete-session-btn {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 10px;
+            border: 1px solid #ef4444;
+            border-radius: var(--radius-sm);
+            background: #fef2f2;
+            color: #ef4444;
+            font-size: 11px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: var(--transition);
+            white-space: nowrap;
+            margin-left: auto;
+        }
+
+        .delete-session-btn:hover {
+            background: #ef4444;
+            color: white;
+        }
+
+        .delete-session-btn.copied {
+            background: var(--success);
+            border-color: var(--success);
+            color: white;
+        }
+
+        .delete-session-btn svg {
+            width: 12px;
+            height: 12px;
+        }
+
+        /* Refresh Button */
+        .refresh-btn {
+            margin-left: auto;
+            padding: 6px;
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-sm);
+            background: var(--bg-secondary);
+            color: var(--text-muted);
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .refresh-btn:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        .refresh-btn.copied {
+            border-color: var(--success);
+            color: var(--success);
+        }
+
+        .refresh-btn svg {
+            width: 16px;
+            height: 16px;
+            display: block;
+        }
+
+        .refresh-btn.loading {
+            pointer-events: none;
+            opacity: 0.6;
+        }
+
+        .refresh-btn.loading svg {
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        /* Rename Button */
+        .rename-session-btn {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 10px;
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-sm);
+            background: var(--bg-secondary);
+            color: var(--text-secondary);
+            font-size: 11px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: var(--transition);
+            white-space: nowrap;
+        }
+
+        .rename-session-btn:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        .rename-session-btn.copied {
+            border-color: var(--success);
+            color: var(--success);
+        }
+
+        .rename-session-btn svg {
+            width: 12px;
+            height: 12px;
+        }
+
+        /* Copy MD Button */
+        .copy-md-btn {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 10px;
+            border: 1px solid #8b5cf6;
+            border-radius: var(--radius-sm);
+            background: #f5f3ff;
+            color: #8b5cf6;
+            font-size: 11px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+
+        .copy-md-btn:hover {
+            background: #8b5cf6;
+            color: white;
+        }
+
+        .copy-md-btn.copied {
+            background: var(--success);
+            border-color: var(--success);
+            color: white;
+        }
+
+        .copy-md-btn svg {
+            width: 12px;
+            height: 12px;
+        }
+
+        /* Save MD Button */
+        .save-md-btn {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 10px;
+            border: 1px solid #0891b2;
+            border-radius: var(--radius-sm);
+            background: #ecfeff;
+            color: #0891b2;
+            font-size: 11px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+
+        .save-md-btn:hover {
+            background: #0891b2;
+            color: white;
+        }
+
+        .save-md-btn.copied {
+            background: var(--success);
+            border-color: var(--success);
+            color: white;
+        }
+
+        .save-md-btn svg {
+            width: 12px;
+            height: 12px;
+        }
+
+        /* Copy/Save MD Full Buttons */
+        .copy-md-full-btn, .save-md-full-btn {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 10px;
+            border: 1px solid #059669;
+            border-radius: var(--radius-sm);
+            background: #ecfdf5;
+            color: #059669;
+            font-size: 11px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+
+        .copy-md-full-btn:hover, .save-md-full-btn:hover {
+            background: #059669;
+            color: white;
+        }
+
+        .copy-md-full-btn.copied, .save-md-full-btn.copied {
+            background: var(--success);
+            border-color: var(--success);
+            color: white;
+        }
+
+        .copy-md-full-btn svg, .save-md-full-btn svg {
+            width: 12px;
+            height: 12px;
+        }
+
+        /* Custom name badge */
+        .custom-name-badge {
+            font-size: 10px;
+            background: var(--assistant-light);
+            color: var(--assistant-accent);
+            padding: 2px 6px;
+            border-radius: 8px;
+            margin-left: 6px;
+        }
+
+        /* Description style in session list */
+        .session-description {
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-top: 6px;
+            padding: 6px 8px;
+            background: var(--bg-secondary);
+            border-radius: 6px;
+            border-left: 3px solid var(--border-color);
+            line-height: 1.4;
+            overflow: hidden;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+        }
+
+        /* Tag styles */
+        .session-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            margin-top: 6px;
+        }
+
+        .session-tag {
+            font-size: 10px;
+            background: #e0f2fe;
+            color: #0369a1;
+            padding: 2px 8px;
+            border-radius: 12px;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .session-tag.named-tag {
+            background: var(--assistant-light);
+            color: var(--assistant-accent);
+        }
+
+        .tag-remove {
+            cursor: pointer;
+            opacity: 0.6;
+            font-size: 12px;
+            line-height: 1;
+        }
+
+        .tag-remove:hover {
+            opacity: 1;
+        }
+
+        /* Header tags section */
+        .header-tags-row {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-top: 8px;
+        }
+
+        .header-tag {
+            font-size: 11px;
+            background: #e0f2fe;
+            color: #0369a1;
+            padding: 3px 10px;
+            border-radius: 12px;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .header-tag.named-tag {
+            background: var(--assistant-light);
+            color: var(--assistant-accent);
+        }
+
+        .header-tag .tag-remove {
+            font-size: 14px;
+        }
+
+        .add-tag-btn {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            padding: 3px 10px;
+            border: 1px dashed var(--border-color);
+            border-radius: 12px;
+            background: transparent;
+            color: var(--text-muted);
+            font-size: 11px;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .add-tag-btn:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        .add-tag-btn svg {
+            width: 12px;
+            height: 12px;
+        }
+
+        /* Header description section */
+        .header-description-row {
+            margin-top: 10px;
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+        }
+
+        .header-description-content {
+            flex: 1;
+            font-size: 13px;
+            color: var(--text-secondary);
+            line-height: 1.5;
+            padding: 8px 12px;
+            background: var(--bg-secondary);
+            border-radius: 8px;
+            border-left: 3px solid var(--accent);
+        }
+
+        .header-description-placeholder {
+            flex: 1;
+            font-size: 13px;
+            color: var(--text-muted);
+            font-style: italic;
+            padding: 8px 12px;
+            background: var(--bg-secondary);
+            border-radius: 8px;
+            border: 1px dashed var(--border-color);
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .header-description-placeholder:hover {
+            border-color: var(--accent);
+            color: var(--text-secondary);
+        }
+
+        .edit-description-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 28px;
+            height: 28px;
+            border: none;
+            border-radius: 6px;
+            background: var(--bg-secondary);
+            color: var(--text-muted);
+            cursor: pointer;
+            transition: var(--transition);
+            flex-shrink: 0;
+        }
+
+        .edit-description-btn:hover {
+            background: var(--accent);
+            color: white;
+        }
+
+        .edit-description-btn svg {
+            width: 14px;
+            height: 14px;
+        }
+
+        /* Tag Filter Dropdown */
+        .tag-filter {
+            position: relative;
+        }
+
+        .tag-dropdown {
+            display: none;
+        }
+
+        .tag-dropdown.show {
+            display: block;
+        }
+
+        @media (min-width: 481px) {
+            .tag-dropdown {
+                position: absolute;
+                top: calc(100% + 8px);
+                left: 0;
+                background: var(--bg-secondary);
+                border: 1px solid var(--border-color);
+                border-radius: var(--radius-md);
+                box-shadow: var(--shadow-lg);
+                padding: 8px;
+                z-index: 100;
+                display: none;
+                min-width: 280px;
+                max-height: 350px;
+                overflow-y: auto;
+            }
+
+            .tag-dropdown.show {
+                display: block;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .tag-dropdown {
+                position: fixed;
+                top: auto;
+                bottom: 0;
+                left: 0;
+                right: 0;
+                border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+                padding: 16px;
+                padding-bottom: calc(16px + env(safe-area-inset-bottom));
+                min-width: auto;
+                max-height: 60vh;
+                overflow-y: auto;
+                z-index: 1100;
+                box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.3);
+                background: var(--bg-secondary);
+                border-top: 3px solid #0369a1;
+            }
+        }
+
+        .tag-search-input {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-sm);
+            font-size: 13px;
+            margin-bottom: 8px;
+        }
+
+        .tag-search-input:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+
+        .tag-option {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            font-size: 12px;
+        }
+
+        .tag-option:hover {
+            background: var(--bg-tertiary);
+        }
+
+        .tag-option input[type="checkbox"] {
+            width: 16px;
+            height: 16px;
+            cursor: pointer;
+        }
+
+        .tag-option-label {
+            flex: 1;
+        }
+
+        .tag-option-count {
+            font-size: 10px;
+            background: var(--bg-tertiary);
+            padding: 2px 6px;
+            border-radius: 8px;
+            color: var(--text-muted);
+        }
+
+        .tag-dropdown-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 8px;
+            padding-top: 8px;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .tag-dropdown-actions button {
+            flex: 1;
+            padding: 8px;
+            border: none;
+            border-radius: var(--radius-sm);
+            font-size: 12px;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .tag-dropdown-actions .clear-tags {
+            background: var(--bg-tertiary);
+            color: var(--text-secondary);
+        }
+
+        .tag-dropdown-actions .clear-tags:hover {
+            background: var(--border-color);
+        }
+
+        /* Search scope dropdown */
+        .search-scope-container {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            margin-top: 8px;
+            margin-bottom: 12px;
+        }
+
+        .search-scope-select {
+            padding: 6px 10px;
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-sm);
+            font-size: 12px;
+            background: var(--bg-secondary);
+            color: var(--text-secondary);
+            cursor: pointer;
+        }
+
+        .search-scope-select:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+
+        .search-scope-label {
+            font-size: 11px;
+            color: var(--text-muted);
+            margin-left: 12px;
+        }
+    </style>
+    <!-- Marked.js for Markdown rendering -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+</head>
+<body>
+    <!-- Toast notification -->
+    <div class="toast" id="toast"></div>
+
+    <!-- Scroll buttons -->
+    <div class="scroll-buttons" id="scrollButtons">
+        <button class="scroll-btn" id="scrollTopBtn" title="맨 위로">
+            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7" />
+            </svg>
+        </button>
+        <button class="scroll-btn" id="scrollBottomBtn" title="맨 아래로">
+            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+            </svg>
+        </button>
+    </div>
+
+    <!-- Mobile Overlay -->
+    <div class="mobile-overlay" id="mobileOverlay"></div>
+
+    <!-- Mobile Menu Button (FAB) -->
+    <button class="mobile-menu-btn" id="mobileMenuBtn">
+        <span class="icon-menu">
+            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+        </span>
+        <span class="icon-close">
+            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+        </span>
+    </button>
+
+    <!-- Mobile Actions Menu (Bottom Sheet) -->
+    <div class="mobile-actions-menu" id="mobileActionsMenu">
+        <div class="mobile-actions-menu-header">
+            <span class="mobile-actions-menu-title">Session Actions</span>
+            <button class="mobile-actions-close" id="mobileActionsClose">
+                <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
+        </div>
+        <div class="mobile-actions-grid">
+            <div class="mobile-action-item" id="mobileResumeBtn">
+                <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                </svg>
+                <span>Resume</span>
+            </div>
+            <div class="mobile-action-item" id="mobileResumeSkipBtn">
+                <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+                <span>Resume (Skip)</span>
+            </div>
+            <div class="mobile-action-item" id="mobileRenameBtn">
+                <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+                <span>Rename</span>
+            </div>
+            <div class="mobile-action-item" id="mobileCopyMdBtn">
+                <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                <span>Copy MD</span>
+            </div>
+            <div class="mobile-action-item" id="mobileSaveMdBtn">
+                <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+                <span>Save MD</span>
+            </div>
+            <div class="mobile-action-item danger" id="mobileDeleteBtn">
+                <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+                <span>Delete</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="app">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo">
+                    <div class="logo-icon">C</div>
+                    <span class="logo-text">Claude History</span>
+                    <button class="refresh-btn" id="refreshIndexBtn" title="Update index & refresh">
+                        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                    </button>
+                </div>
+                <div class="stats-row">
+                    <div class="stat">
+                        <div class="stat-value" id="totalSessions">-</div>
+                        <div class="stat-label">Sessions</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-value" id="totalMessages">-</div>
+                        <div class="stat-label">Messages</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-value" id="filteredCount">-</div>
+                        <div class="stat-label">Showing</div>
+                    </div>
+                </div>
+                <div class="search-box">
+                    <input type="text" id="sessionSearch" placeholder="Search sessions...">
+                </div>
+            </div>
+
+            <div class="filters">
+                <div class="date-filter">
+                    <button class="filter-btn" id="dateFilterBtn">
+                        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                        <span>All Dates</span>
+                    </button>
+                    <div class="date-dropdown" id="dateDropdown">
+                        <div class="date-quick-filters">
+                            <button class="date-quick-btn" data-days="0">Today</button>
+                            <button class="date-quick-btn" data-days="1">Yesterday</button>
+                            <button class="date-quick-btn" data-days="7">7 Days</button>
+                            <button class="date-quick-btn" data-days="30">30 Days</button>
+                            <button class="date-quick-btn" data-days="90">90 Days</button>
+                        </div>
+                        <div class="date-inputs">
+                            <div class="date-input-group">
+                                <label>From</label>
+                                <input type="date" id="dateFrom">
+                            </div>
+                            <div class="date-input-group">
+                                <label>To</label>
+                                <input type="date" id="dateTo">
+                            </div>
+                        </div>
+                        <div class="date-dropdown-actions">
+                            <button class="clear" id="clearDate">Clear</button>
+                            <button class="apply" id="applyDate">Apply</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="project-filter">
+                    <button class="filter-btn" id="projectFilterBtn">
+                        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                        </svg>
+                        <span>All Projects</span>
+                    </button>
+                    <div class="project-dropdown" id="projectDropdown"></div>
+                </div>
+
+                <div class="tag-filter">
+                    <button class="filter-btn" id="tagFilterBtn">
+                        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                        </svg>
+                        <span>All Tags</span>
+                    </button>
+                    <div class="tag-dropdown" id="tagDropdown">
+                        <input type="text" class="tag-search-input" id="tagSearchInput" placeholder="Search tags...">
+                        <div class="tag-options-list" id="tagOptionsList"></div>
+                        <div class="tag-dropdown-actions">
+                            <button class="clear-tags" id="clearTagFilter">Clear</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="search-scope-container">
+                <span class="search-scope-label">Search in:</span>
+                <select class="search-scope-select" id="searchScopeSelect">
+                    <option value="all">All (Title+Content+Tags+Desc)</option>
+                    <option value="title">Title only</option>
+                    <option value="content">Content only</option>
+                    <option value="title_content">Title + Content</option>
+                    <option value="tags">Tags only</option>
+                    <option value="description">Description only</option>
+                </select>
+            </div>
+
+            <div class="session-list" id="sessionList">
+                <div class="loading">
+                    <div class="loading-spinner"></div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main">
+            <div class="empty-state" id="emptyState">
+                <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                </svg>
+                <div class="empty-state-title">Select a conversation</div>
+                <p>Choose a session from the left to view the full conversation</p>
+            </div>
+
+            <div id="conversationView" style="display: none;">
+                <header class="main-header">
+                    <div>
+                        <div class="main-title" id="conversationTitle">Conversation</div>
+                        <div class="main-meta" id="conversationMeta"></div>
+                        <div class="header-tags-row" id="headerTagsRow" style="display: none;"></div>
+                        <div class="header-description-row" id="headerDescriptionRow" style="display: none;"></div>
+                        <div class="session-id-row" id="sessionIdRow" style="display: none;">
+                            <span class="session-id" id="sessionIdDisplay" title="Session ID"></span>
+                            <div class="resume-btn-wrapper">
+                                <button class="copy-resume-btn" id="copyResumeBtn" title="Resume this session">
+                                    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                    <span>Resume</span>
+                                </button>
+                                <div class="resume-options-menu" id="resumeOptionsMenu">
+                                    <button data-action="tab">📑 iTerm2 새 탭에서 열기</button>
+                                    <button data-action="window">🪟 iTerm2 새 창에서 열기</button>
+                                    <div class="divider"></div>
+                                    <button data-action="copy">📋 명령어 복사</button>
+                                </div>
+                            </div>
+                            <div class="resume-btn-wrapper">
+                                <button class="copy-resume-btn skip-perms" id="copyResumeSkipBtn" title="Resume (skip permissions)">
+                                    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                                    </svg>
+                                    <span>Resume (Skip)</span>
+                                </button>
+                                <div class="resume-options-menu" id="resumeSkipOptionsMenu">
+                                    <button data-action="tab">📑 iTerm2 새 탭에서 열기</button>
+                                    <button data-action="window">🪟 iTerm2 새 창에서 열기</button>
+                                    <div class="divider"></div>
+                                    <button data-action="copy">📋 명령어 복사</button>
+                                </div>
+                            </div>
+                            <button class="rename-session-btn" id="renameSessionBtn" title="Rename this session">
+                                <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                </svg>
+                                <span>Rename</span>
+                            </button>
+                            <button class="delete-session-btn" id="deleteSessionBtn" title="Copy delete command">
+                                <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                                <span>Delete</span>
+                            </button>
+                            <button class="copy-md-btn" id="copyMdBtn" title="Copy conversation as Markdown">
+                                <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                </svg>
+                                <span>Copy MD</span>
+                            </button>
+                            <button class="save-md-btn" id="saveMdBtn" title="Save conversation as Markdown file">
+                                <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                </svg>
+                                <span>Save MD</span>
+                            </button>
+                            <button class="copy-md-full-btn" id="copyMdFullBtn" title="Copy with full tool details">
+                                <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                </svg>
+                                <span>Copy Full</span>
+                            </button>
+                            <button class="save-md-full-btn" id="saveMdFullBtn" title="Save with full tool details">
+                                <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                </svg>
+                                <span>Save Full</span>
+                            </button>
+                            <div class="tool-call-toggle-container" id="toolCallToggleContainer">
+                                <input type="checkbox" id="showToolCalls" checked>
+                                <label for="showToolCalls">Tool Calls</label>
+                            </div>
+                            <div class="tool-call-toggle-container" id="markdownToggleContainer">
+                                <input type="checkbox" id="renderMarkdown">
+                                <label for="renderMarkdown">Markdown</label>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Mobile Actions Button -->
+                    <button class="mobile-actions-btn" id="mobileActionsBtn">
+                        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
+                        </svg>
+                    </button>
+                </header>
+                <div class="conversation-search">
+                    <input type="text" id="conversationSearch" placeholder="Search in conversation...">
+                    <div class="search-results-info" id="searchResultsInfo"></div>
+                </div>
+                <div class="conversation" id="conversationContent">
+                    <div class="loading">
+                        <div class="loading-spinner"></div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // State
+        let allItems = [];  // Can be sessions or history entries
+        let filteredItems = [];
+        let currentItem = null;
+        let currentMessages = [];
+        let searchQuery = '';
+        let dateFrom = null;
+        let dateTo = null;
+        let selectedProject = null;
+        let selectedTags = [];  // Array of selected tag names for filtering
+        let tagSearchQuery = '';  // Search query for tag dropdown
+        let sessionTags = {};  // sessionId -> [tags] mapping
+        let sessionDescriptions = {};  // sessionId -> description mapping
+        let conversationSearchQuery = '';
+        let showType = 'all'; // 'all', 'sessions', 'history'
+        let searchScope = 'all';  // 'all', 'title', 'content', 'title_content', 'tags', 'description'
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', async () => {
+            await loadSessionTags();
+            await loadSessionDescriptions();
+            await loadSessionIndex();
+            setupEventListeners();
+        });
+
+        // Load session tags from session-tags.json
+        async function loadSessionTags() {
+            try {
+                const response = await fetch('session-tags.json?t=' + Date.now());
+                if (response.ok) {
+                    sessionTags = await response.json();
+                    console.log('Loaded tags from session-tags.json');
+                } else {
+                    sessionTags = {};
+                }
+            } catch (error) {
+                console.log('No session-tags.json found, starting fresh');
+                sessionTags = {};
+            }
+        }
+
+        // Load session descriptions from session-descriptions.json
+        async function loadSessionDescriptions() {
+            try {
+                const response = await fetch('session-descriptions.json?t=' + Date.now());
+                if (response.ok) {
+                    sessionDescriptions = await response.json();
+                    console.log('Loaded descriptions from session-descriptions.json');
+                } else {
+                    sessionDescriptions = {};
+                }
+            } catch (error) {
+                console.log('No session-descriptions.json found, starting fresh');
+                sessionDescriptions = {};
+            }
+        }
+
+        // Get description for a session
+        function getSessionDescription(sessionId) {
+            return sessionDescriptions[sessionId] || '';
+        }
+
+        // Get tags for a session (including 'named' tag if it has customName)
+        function getSessionTags(sessionId, customName) {
+            const tags = sessionTags[sessionId] || [];
+            // Add 'named' tag if session has customName and doesn't already have it
+            if (customName && !tags.includes('named')) {
+                return ['named', ...tags];
+            }
+            return [...tags];
+        }
+
+        // Get all unique tags across all sessions
+        function getAllTags() {
+            const tagCounts = {};
+            allItems.forEach(item => {
+                if (item.type === 'session') {
+                    const tags = getSessionTags(item.sessionId, item.customName);
+                    tags.forEach(tag => {
+                        tagCounts[tag] = (tagCounts[tag] || 0) + 1;
+                    });
+                }
+            });
+            return tagCounts;
+        }
+
+        // Add tag to session via API
+        // Supports comma-separated multiple tags (e.g., "AI, LLM, 수학")
+        async function addTagToSession(sessionId, tagsInput) {
+            if (!tagsInput || tagsInput === 'named') return;
+
+            try {
+                const response = await fetch('/api/tags/add', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ session_id: sessionId, tags: tagsInput })
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    alert(`태그 추가 실패: ${error.detail || '알 수 없는 오류'}`);
+                    return;
+                }
+
+                const result = await response.json();
+
+                // Update local sessionTags
+                sessionTags[sessionId] = result.tags;
+
+                // Update tag filter dropdown
+                buildTagFilter();
+
+                // Refresh current view
+                if (currentItem?.sessionId === sessionId) {
+                    refreshHeaderTags(sessionId);
+                }
+                applyFilters();
+
+                // Show result message
+                if (result.added && result.added.length > 0) {
+                    console.log(`Added tags: ${result.added.join(', ')}`);
+                }
+                if (result.skipped && result.skipped.length > 0) {
+                    console.log(`Skipped existing tags: ${result.skipped.join(', ')}`);
+                }
+            } catch (error) {
+                alert(`태그 추가 실패: ${error.message}`);
+            }
+        }
+
+        // Remove tag from session via API
+        async function removeTagFromSession(sessionId, tag) {
+            if (tag === 'named') {
+                alert("'named' 태그는 자동 태그입니다. Rename으로 이름을 제거하세요.");
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/tags/remove', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ session_id: sessionId, tag: tag })
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    alert(`태그 삭제 실패: ${error.detail || '알 수 없는 오류'}`);
+                    return;
+                }
+
+                const result = await response.json();
+
+                // Update local sessionTags
+                if (result.tags.length > 0) {
+                    sessionTags[sessionId] = result.tags;
+                } else {
+                    delete sessionTags[sessionId];
+                }
+
+                // Update tag filter dropdown
+                buildTagFilter();
+
+                // Refresh current view
+                if (currentItem?.sessionId === sessionId) {
+                    refreshHeaderTags(sessionId);
+                }
+                applyFilters();
+
+                console.log(`Removed tag: ${result.removed}`);
+            } catch (error) {
+                alert(`태그 삭제 실패: ${error.message}`);
+            }
+        }
+
+        // Helper: Refresh header tags display for current session
+        function refreshHeaderTags(sessionId) {
+            const item = allItems.find(i => i.sessionId === sessionId);
+            if (!item) return;
+
+            const container = document.getElementById('headerTagsRow');
+            if (!container) return;
+
+            const tags = getSessionTags(sessionId, item.customName);
+
+            if (tags.length === 0) {
+                container.style.display = 'none';
+                container.innerHTML = '';
+                return;
+            }
+
+            container.style.display = 'flex';
+            container.innerHTML = `
+                <div class="header-tags-container">
+                    ${tags.map(tag => `
+                        <span class="session-tag detail-tag ${tag === 'named' ? 'named-tag' : ''}" data-tag="${tag}">
+                            ${tag}
+                            ${tag !== 'named' ? '<span class="tag-remove" title="Remove tag">&times;</span>' : ''}
+                        </span>
+                    `).join('')}
+                    <button class="add-tag-btn" title="Add tag">+</button>
+                </div>
+            `;
+
+            // Re-attach event listeners for tag removal
+            container.querySelectorAll('.tag-remove').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const tagEl = e.target.closest('.session-tag');
+                    const tagName = tagEl.dataset.tag;
+                    if (confirm(`'${tagName}' 태그를 삭제하시겠습니까?`)) {
+                        removeTagFromSession(sessionId, tagName);
+                    }
+                });
+            });
+
+            // Re-attach add tag button
+            container.querySelector('.add-tag-btn')?.addEventListener('click', () => {
+                const newTags = prompt('태그를 입력하세요 (쉼표로 구분하여 여러 개 입력 가능):');
+                if (newTags && newTags.trim()) {
+                    addTagToSession(sessionId, newTags.trim());
+                }
+            });
+        }
+
+        async function loadSessionIndex() {
+            try {
+                // Add cache-busting parameter to prevent browser caching
+                const response = await fetch('sessions-index.json?t=' + Date.now());
+                const data = await response.json();
+                allItems = data.items || data.sessions || [];
+
+                // Calculate stats
+                const sessions = allItems.filter(i => i.type === 'session');
+                const historyOnly = allItems.filter(i => i.type === 'history');
+                const totalMessages = sessions.reduce((sum, s) => sum + (s.messageCount || 0), 0);
+
+                document.getElementById('totalSessions').textContent = sessions.length;
+                document.getElementById('totalMessages').textContent = `${totalMessages} msgs + ${historyOnly.length} history`;
+
+                applyFilters();
+                buildProjectFilter();
+                buildTagFilter();
+            } catch (error) {
+                console.error('Error loading session index:', error);
+                document.getElementById('sessionList').innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-title">Failed to load sessions</div>
+                        <p>Make sure you're running a local server from the .claude directory</p>
+                        <p style="margin-top: 12px; font-family: monospace; font-size: 12px;">
+                            cd ~/.claude && python3 -m http.server 8080
+                        </p>
+                    </div>
+                `;
+            }
+        }
+
+        function setupEventListeners() {
+            // Scroll buttons
+            const scrollTopBtn = document.getElementById('scrollTopBtn');
+            const scrollBottomBtn = document.getElementById('scrollBottomBtn');
+
+            scrollTopBtn.addEventListener('click', () => {
+                const conversation = document.getElementById('conversationContent');
+                if (conversation) {
+                    conversation.scrollTo({ top: 0, behavior: 'smooth' });
+                }
+            });
+
+            scrollBottomBtn.addEventListener('click', () => {
+                const conversation = document.getElementById('conversationContent');
+                if (conversation) {
+                    conversation.scrollTo({ top: conversation.scrollHeight, behavior: 'smooth' });
+                }
+            });
+
+            // Session search
+            document.getElementById('sessionSearch').addEventListener('input', debounce((e) => {
+                searchQuery = e.target.value.trim().toLowerCase();
+                applyFilters();
+            }, 300));
+
+            // Date filter - prevent dropdown from closing on inside click
+            document.getElementById('dateDropdown').addEventListener('click', (e) => {
+                e.stopPropagation();
+            });
+
+            document.getElementById('dateFilterBtn').addEventListener('click', (e) => {
+                e.stopPropagation();
+                document.getElementById('dateDropdown').classList.toggle('show');
+                document.getElementById('projectDropdown').classList.remove('show');
+                document.getElementById('tagDropdown').classList.remove('show');
+            });
+
+            // Quick date filter buttons
+            document.querySelectorAll('.date-quick-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const days = parseInt(btn.dataset.days);
+                    const today = new Date();
+                    today.setHours(0, 0, 0, 0);
+
+                    // Clear active state from all quick buttons
+                    document.querySelectorAll('.date-quick-btn').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+
+                    if (days === 0) {
+                        // Today
+                        dateFrom = formatDateValue(today);
+                        dateTo = formatDateValue(today);
+                    } else if (days === 1) {
+                        // Yesterday
+                        const yesterday = new Date(today);
+                        yesterday.setDate(yesterday.getDate() - 1);
+                        dateFrom = formatDateValue(yesterday);
+                        dateTo = formatDateValue(yesterday);
+                    } else {
+                        // Last N days
+                        const fromDate = new Date(today);
+                        fromDate.setDate(fromDate.getDate() - days);
+                        dateFrom = formatDateValue(fromDate);
+                        dateTo = formatDateValue(today);
+                    }
+
+                    document.getElementById('dateFrom').value = dateFrom;
+                    document.getElementById('dateTo').value = dateTo;
+                    updateDateFilterButton();
+                    applyFilters();
+                    document.getElementById('dateDropdown').classList.remove('show');
+                });
+            });
+
+            document.getElementById('applyDate').addEventListener('click', () => {
+                document.querySelectorAll('.date-quick-btn').forEach(b => b.classList.remove('active'));
+                dateFrom = document.getElementById('dateFrom').value || null;
+                dateTo = document.getElementById('dateTo').value || null;
+                updateDateFilterButton();
+                document.getElementById('dateDropdown').classList.remove('show');
+                applyFilters();
+            });
+
+            document.getElementById('clearDate').addEventListener('click', () => {
+                dateFrom = null;
+                dateTo = null;
+                document.getElementById('dateFrom').value = '';
+                document.getElementById('dateTo').value = '';
+                document.querySelectorAll('.date-quick-btn').forEach(b => b.classList.remove('active'));
+                updateDateFilterButton();
+                document.getElementById('dateDropdown').classList.remove('show');
+                applyFilters();
+            });
+
+            // Project filter - prevent dropdown from closing on inside click
+            document.getElementById('projectDropdown').addEventListener('click', (e) => {
+                e.stopPropagation();
+            });
+
+            document.getElementById('projectFilterBtn').addEventListener('click', (e) => {
+                e.stopPropagation();
+                document.getElementById('projectDropdown').classList.toggle('show');
+                document.getElementById('dateDropdown').classList.remove('show');
+                document.getElementById('tagDropdown').classList.remove('show');
+            });
+
+            // Tag filter - prevent dropdown from closing on inside click
+            document.getElementById('tagDropdown').addEventListener('click', (e) => {
+                e.stopPropagation();
+            });
+
+            document.getElementById('tagFilterBtn').addEventListener('click', (e) => {
+                e.stopPropagation();
+                document.getElementById('tagDropdown').classList.toggle('show');
+                document.getElementById('dateDropdown').classList.remove('show');
+                document.getElementById('projectDropdown').classList.remove('show');
+            });
+
+            // Tag search input
+            document.getElementById('tagSearchInput').addEventListener('input', debounce((e) => {
+                tagSearchQuery = e.target.value.trim().toLowerCase();
+                buildTagFilter();
+            }, 200));
+
+            // Clear tag filter button
+            document.getElementById('clearTagFilter').addEventListener('click', () => {
+                selectedTags = [];
+                tagSearchQuery = '';
+                document.getElementById('tagSearchInput').value = '';
+                updateTagFilterButton();
+                document.getElementById('tagDropdown').classList.remove('show');
+                buildTagFilter();
+                applyFilters();
+            });
+
+            // Search scope selector
+            document.getElementById('searchScopeSelect').addEventListener('change', (e) => {
+                searchScope = e.target.value;
+                applyFilters();
+            });
+
+            // Close dropdowns on outside click
+            document.addEventListener('click', () => {
+                document.getElementById('dateDropdown').classList.remove('show');
+                document.getElementById('projectDropdown').classList.remove('show');
+                document.getElementById('tagDropdown').classList.remove('show');
+            });
+
+            // Tool Call toggle checkbox
+            document.getElementById('showToolCalls').addEventListener('change', (e) => {
+                const conversationContent = document.getElementById('conversationContent');
+                if (e.target.checked) {
+                    conversationContent.classList.remove('hide-tools');
+                } else {
+                    conversationContent.classList.add('hide-tools');
+                }
+            });
+
+            // Markdown rendering toggle checkbox
+            document.getElementById('renderMarkdown').addEventListener('change', () => {
+                renderConversation();
+            });
+
+            // Tool Use collapse toggle (event delegation)
+            document.getElementById('conversationContent').addEventListener('click', (e) => {
+                const toggleBtn = e.target.closest('.tool-use-toggle');
+                if (toggleBtn) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const toolUse = toggleBtn.closest('.tool-use');
+                    if (toolUse) {
+                        toolUse.classList.toggle('collapsed');
+                    }
+                }
+            });
+
+            // Conversation search
+            let currentSearchIndex = -1;
+            let searchMatches = [];
+
+            document.getElementById('conversationSearch').addEventListener('input', debounce((e) => {
+                conversationSearchQuery = e.target.value.trim().toLowerCase();
+                currentSearchIndex = -1;
+                renderConversation();
+                // Auto-jump to first match
+                if (conversationSearchQuery) {
+                    jumpToNextMatch();
+                }
+            }, 300));
+
+            // Enter key to jump to next match
+            document.getElementById('conversationSearch').addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (e.shiftKey) {
+                        jumpToPrevMatch();
+                    } else {
+                        jumpToNextMatch();
+                    }
+                }
+            });
+
+            function jumpToNextMatch() {
+                searchMatches = document.querySelectorAll('.conversation .message mark');
+                if (searchMatches.length === 0) return;
+
+                currentSearchIndex = (currentSearchIndex + 1) % searchMatches.length;
+                scrollToMatch(currentSearchIndex);
+            }
+
+            function jumpToPrevMatch() {
+                searchMatches = document.querySelectorAll('.conversation .message mark');
+                if (searchMatches.length === 0) return;
+
+                currentSearchIndex = currentSearchIndex <= 0 ? searchMatches.length - 1 : currentSearchIndex - 1;
+                scrollToMatch(currentSearchIndex);
+            }
+
+            function scrollToMatch(index) {
+                // Remove previous highlight
+                document.querySelectorAll('.current-match').forEach(el => el.classList.remove('current-match'));
+
+                const match = searchMatches[index];
+                if (match) {
+                    match.classList.add('current-match');
+                    match.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+                    // Update search info
+                    const info = document.getElementById('searchResultsInfo');
+                    info.textContent = `${index + 1} / ${searchMatches.length} matches (Enter: next, Shift+Enter: prev)`;
+                }
+            }
+
+            // Resume button - show options menu
+            document.getElementById('copyResumeBtn').addEventListener('click', (e) => {
+                e.stopPropagation();
+                toggleResumeMenu('resumeOptionsMenu');
+            });
+
+            // Resume (Skip) button - show options menu
+            document.getElementById('copyResumeSkipBtn').addEventListener('click', (e) => {
+                e.stopPropagation();
+                toggleResumeMenu('resumeSkipOptionsMenu');
+            });
+
+            // Toggle resume options menu
+            function toggleResumeMenu(menuId) {
+                const menu = document.getElementById(menuId);
+                const allMenus = document.querySelectorAll('.resume-options-menu');
+
+                // Close other menus
+                allMenus.forEach(m => {
+                    if (m.id !== menuId) m.classList.remove('show');
+                });
+
+                menu.classList.toggle('show');
+            }
+
+            // Close menus when clicking outside
+            document.addEventListener('click', () => {
+                document.querySelectorAll('.resume-options-menu').forEach(m => m.classList.remove('show'));
+            });
+
+            // Handle resume options menu clicks
+            document.getElementById('resumeOptionsMenu').addEventListener('click', (e) => {
+                const action = e.target.dataset.action;
+                if (action) {
+                    handleResumeAction(action, false);
+                    document.getElementById('resumeOptionsMenu').classList.remove('show');
+                }
+            });
+
+            document.getElementById('resumeSkipOptionsMenu').addEventListener('click', (e) => {
+                const action = e.target.dataset.action;
+                if (action) {
+                    handleResumeAction(action, true);
+                    document.getElementById('resumeSkipOptionsMenu').classList.remove('show');
+                }
+            });
+
+            // Handle resume action
+            async function handleResumeAction(action, skipPermissions) {
+                const sessionId = document.getElementById('sessionIdDisplay').textContent;
+                if (!sessionId || !currentItem) return;
+
+                // Get the project path (add leading slash if not present)
+                let projectPath = currentItem.project || '';
+                if (projectPath && !projectPath.startsWith('/')) {
+                    projectPath = '/' + projectPath;
+                }
+
+                if (action === 'copy') {
+                    // Copy command to clipboard
+                    const skipFlag = skipPermissions ? ' --dangerously-skip-permissions' : '';
+                    let command;
+                    if (projectPath) {
+                        command = `cd "${projectPath}" && claude -r ${sessionId}${skipFlag}`;
+                    } else {
+                        command = `claude -r ${sessionId}${skipFlag}`;
+                    }
+
+                    try {
+                        await navigator.clipboard.writeText(command);
+
+                        const btn = document.getElementById(skipPermissions ? 'copyResumeSkipBtn' : 'copyResumeBtn');
+                        const originalText = btn.querySelector('span').textContent;
+
+                        btn.classList.add('copied');
+                        btn.querySelector('span').textContent = 'Copied!';
+
+                        setTimeout(() => {
+                            btn.classList.remove('copied');
+                            btn.querySelector('span').textContent = originalText;
+                        }, 2000);
+                    } catch (err) {
+                        console.error('Failed to copy:', err);
+                        prompt('Copy this command:', command);
+                    }
+                } else {
+                    // Open in iTerm2 via API
+                    try {
+                        const response = await fetch('/api/resume', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                session_id: sessionId,
+                                project_path: projectPath || '~',
+                                skip_permissions: skipPermissions,
+                                open_in: action  // "tab" or "window"
+                            })
+                        });
+
+                        if (!response.ok) {
+                            const error = await response.json();
+                            alert(`Resume 실패: ${error.detail || '알 수 없는 오류'}`);
+                            return;
+                        }
+
+                        // Success - iTerm2 should now be open
+                        console.log(`Opened session in iTerm2 ${action}`);
+                    } catch (error) {
+                        alert(`Resume 실패: ${error.message}`);
+                    }
+                }
+            }
+
+            // Generate Markdown from conversation
+            // fullMode: include full tool inputs/outputs without truncation
+            function generateMarkdown(fullMode = false) {
+                if (!currentItem || !currentMessages.length) return '';
+
+                const sessionName = currentItem.customName || currentItem.preview || 'Untitled Session';
+                const projectName = currentItem.project ? currentItem.project.split('/').pop() : 'Unknown Project';
+
+                // Get date info (both start and end include time)
+                let dateInfo = '';
+                if (currentItem.firstTimestamp) {
+                    const firstDate = new Date(currentItem.firstTimestamp);
+                    dateInfo = firstDate.toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+                }
+                if (currentItem.lastTimestamp) {
+                    const lastDate = new Date(currentItem.lastTimestamp);
+                    const lastDateStr = lastDate.toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+                    dateInfo += dateInfo ? ` ~ ${lastDateStr}` : lastDateStr;
+                }
+
+                // Escape special characters in session name for markdown safety
+                const safeSessionName = sessionName.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+                let md = `# <font color="#5b9bd5">${safeSessionName}</font>\n\n`;
+                md += `**프로젝트:** ${projectName}  \n`;
+                md += `**기간:** ${dateInfo}  \n`;
+                md += `**메시지 수:** ${currentItem.messageCount || currentMessages.length}개  \n`;
+                if (currentItem.sessionId) {
+                    md += `**세션 ID:** \`${currentItem.sessionId}\`\n`;
+                }
+                md += '\n---\n';
+
+                // Comprehensive markdown escaping function (defined once, used for all messages)
+                function escapeMarkdownContent(text) {
+                    let result = text.trim();
+
+                    // 1. CRITICAL: Escape angle brackets (prevents HTML-like tag interpretation)
+                    // Example: <session-id> looks like HTML tag and breaks all subsequent parsing
+                    result = result.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+                    // 2. Handle unbalanced single backticks (unclosed code spans break parsing)
+                    // Count backticks that are NOT part of triple backticks
+                    const withoutTriple = result.replace(/```/g, '');
+                    const singleBacktickCount = (withoutTriple.match(/`/g) || []).length;
+                    if (singleBacktickCount % 2 !== 0) {
+                        // Odd number - escape all single backticks (not triple)
+                        result = result.replace(/`(?!``)/g, '\\`');
+                    }
+
+                    // 3. CRITICAL: Handle unbalanced code fences (``` blocks)
+                    // If odd number of ```, the last code block is unclosed and will trap all subsequent content
+                    const fenceCount = (result.match(/```/g) || []).length;
+                    if (fenceCount % 2 !== 0) {
+                        // Add closing fence at the end to balance
+                        result += '\n```';
+                    }
+
+                    // 4. Process line by line for line-start patterns
+                    result = result.split('\n').map(line => {
+                        const trimmedLine = line.trim();
+
+                        // Don't modify code block markers
+                        if (trimmedLine.startsWith('```')) return line;
+
+                        // Escape horizontal rules: --- at start (with optional text after)
+                        if (/^-{3,}/.test(trimmedLine)) {
+                            return line.replace(/-{3,}/, match => match.split('').map(() => '\\-').join(''));
+                        }
+
+                        // Escape horizontal rules: ___ at start
+                        if (/^_{3,}/.test(trimmedLine)) {
+                            return line.replace(/_{3,}/, match => match.split('').map(() => '\\_').join(''));
+                        }
+
+                        // Escape horizontal rules: *** at start
+                        if (/^\*{3,}/.test(trimmedLine)) {
+                            return line.replace(/\*{3,}/, match => match.split('').map(() => '\\*').join(''));
+                        }
+
+                        // Escape headings: # ## ### etc at start of line
+                        if (/^#{1,6}(\s|$)/.test(trimmedLine)) {
+                            return line.replace(/^(\s*)(#{1,6})/, (match, space, hashes) => {
+                                return space + hashes.split('').map(() => '\\#').join('');
+                            });
+                        }
+
+                        return line;
+                    }).join('\n');
+
+                    return result;
+                }
+
+                currentMessages.forEach((msg, index) => {
+                    const isUser = msg.type === 'user';
+                    const role = isUser ? 'User' : 'Claude';
+
+                    // Get timestamp
+                    let timeStr = '';
+                    if (msg.timestamp) {
+                        const msgDate = new Date(msg.timestamp);
+                        timeStr = msgDate.toLocaleString('ko-KR', {
+                            year: 'numeric', month: '2-digit', day: '2-digit',
+                            hour: '2-digit', minute: '2-digit'
+                        });
+                    }
+
+                    // Extract content
+                    let content = '';
+                    const msgContent = msg.message?.content;
+                    let hasToolUse = false;
+
+                    if (typeof msgContent === 'string') {
+                        content = msgContent;
+                    } else if (Array.isArray(msgContent)) {
+                        msgContent.forEach(item => {
+                            if (item.type === 'text') {
+                                content += item.text + '\n';
+                            } else if (item.type === 'tool_use') {
+                                // Add tool use indicator (like HTML display)
+                                content += `[Tool: ${item.name}]\n`;
+                                hasToolUse = true;
+                            }
+                        });
+                    }
+
+                    // Skip empty messages (but keep messages with tool use)
+                    if (!content.trim() && !hasToolUse) return;
+
+                    const cleanContent = escapeMarkdownContent(content);
+
+                    // Add message to markdown with proper spacing
+                    // Use HTML colored headings for robust rendering (won't break even after code blocks)
+                    const userColor = '#4bacc6';    // Cyan/teal for User
+                    const claudeColor = '#f79646';  // Orange for Claude
+                    const headingColor = isUser ? userColor : claudeColor;
+                    md += `\n## <font color="${headingColor}">${role}</font>\n\n`;
+                    if (timeStr) {
+                        md += `*${timeStr}*\n\n`;
+                    }
+                    md += cleanContent + '\n\n';
+
+                    // Add tool use info for Claude messages
+                    if (!isUser && Array.isArray(msgContent)) {
+                        const toolUses = msgContent.filter(item => item.type === 'tool_use');
+                        const toolResults = msgContent.filter(item => item.type === 'tool_result');
+
+                        if (toolUses.length > 0) {
+                            md += `#### <font color="#9966cc">사용된 도구</font>\n\n`;
+                            toolUses.forEach((tool, idx) => {
+                                md += `###### ${tool.name}\n\n`;
+
+                                // Tool Input
+                                const inputStr = typeof tool.input === 'string'
+                                    ? tool.input
+                                    : JSON.stringify(tool.input, null, 2);
+
+                                if (fullMode) {
+                                    // Full mode: show complete input
+                                    md += '**Input:**\n```json\n' + inputStr + '\n```\n\n';
+
+                                    // Find matching tool result by tool_use_id
+                                    const result = toolResults.find(r => r.tool_use_id === tool.id);
+                                    if (result) {
+                                        let resultContent = '';
+                                        if (typeof result.content === 'string') {
+                                            resultContent = result.content;
+                                        } else if (Array.isArray(result.content)) {
+                                            result.content.forEach(item => {
+                                                if (item.type === 'text') {
+                                                    resultContent += item.text + '\n';
+                                                }
+                                            });
+                                        }
+                                        if (resultContent.trim()) {
+                                            // Escape the result content for markdown safety
+                                            const safeResult = escapeMarkdownContent(resultContent.trim());
+                                            md += '**Output:**\n```\n' + safeResult + '\n```\n\n';
+                                        }
+                                    }
+                                } else {
+                                    // Normal mode: truncate input, no output
+                                    const displayInput = inputStr.length > 500 ? inputStr.substring(0, 500) + '...' : inputStr;
+                                    md += '```json\n' + displayInput + '\n```\n\n';
+                                }
+                            });
+                        }
+                    }
+
+                    md += '\n---\n';
+                });
+
+                return md;
+            }
+
+            // Copy MD button
+            document.getElementById('copyMdBtn').addEventListener('click', async () => {
+                const markdown = generateMarkdown();
+                if (!markdown) return;
+
+                try {
+                    await navigator.clipboard.writeText(markdown);
+
+                    const btn = document.getElementById('copyMdBtn');
+                    btn.classList.add('copied');
+                    btn.querySelector('span').textContent = 'Copied!';
+
+                    setTimeout(() => {
+                        btn.classList.remove('copied');
+                        btn.querySelector('span').textContent = 'Copy MD';
+                    }, 2000);
+                } catch (err) {
+                    console.error('Failed to copy:', err);
+                    // Fallback: show in textarea for manual copy
+                    const textarea = document.createElement('textarea');
+                    textarea.value = markdown;
+                    textarea.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:80%;height:60%;z-index:10000;';
+                    document.body.appendChild(textarea);
+                    textarea.select();
+                    alert('Ctrl+C로 복사 후 창을 닫으세요');
+                    textarea.addEventListener('blur', () => textarea.remove());
+                }
+            });
+
+            // Save MD button
+            document.getElementById('saveMdBtn').addEventListener('click', async () => {
+                const markdown = generateMarkdown();
+                if (!markdown) return;
+
+                // Generate filename
+                const sessionName = currentItem.customName || currentItem.preview || 'conversation';
+                // Clean filename - remove special characters
+                const cleanName = sessionName.replace(/[<>:"/\\|?*]/g, '').substring(0, 50).trim();
+                const timestamp = new Date().toISOString().slice(0, 10);
+                const filename = `${cleanName}_${timestamp}.md`;
+
+                const btn = document.getElementById('saveMdBtn');
+
+                // Try File System Access API (native file picker)
+                if ('showSaveFilePicker' in window) {
+                    try {
+                        const handle = await window.showSaveFilePicker({
+                            suggestedName: filename,
+                            types: [{
+                                description: 'Markdown Files',
+                                accept: { 'text/markdown': ['.md'] }
+                            }]
+                        });
+
+                        const writable = await handle.createWritable();
+                        await writable.write(markdown);
+                        await writable.close();
+
+                        btn.classList.add('copied');
+                        btn.querySelector('span').textContent = 'Saved!';
+                        setTimeout(() => {
+                            btn.classList.remove('copied');
+                            btn.querySelector('span').textContent = 'Save MD';
+                        }, 2000);
+                        return;
+                    } catch (err) {
+                        // User cancelled or API error - fall through to download method
+                        if (err.name === 'AbortError') return;
+                        console.log('File picker failed, using download fallback:', err);
+                    }
+                }
+
+                // Fallback: standard download (for browsers without File System Access API)
+                const blob = new Blob([markdown], { type: 'text/markdown;charset=utf-8' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+
+                btn.classList.add('copied');
+                btn.querySelector('span').textContent = 'Saved!';
+                setTimeout(() => {
+                    btn.classList.remove('copied');
+                    btn.querySelector('span').textContent = 'Save MD';
+                }, 2000);
+            });
+
+            // Copy MD Full button (with full tool details)
+            document.getElementById('copyMdFullBtn').addEventListener('click', async () => {
+                const markdown = generateMarkdown(true); // fullMode = true
+                if (!markdown) return;
+
+                try {
+                    await navigator.clipboard.writeText(markdown);
+
+                    const btn = document.getElementById('copyMdFullBtn');
+                    btn.classList.add('copied');
+                    btn.querySelector('span').textContent = 'Copied!';
+
+                    setTimeout(() => {
+                        btn.classList.remove('copied');
+                        btn.querySelector('span').textContent = 'Copy Full';
+                    }, 2000);
+                } catch (err) {
+                    console.error('Failed to copy:', err);
+                    const textarea = document.createElement('textarea');
+                    textarea.value = markdown;
+                    textarea.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:80%;height:60%;z-index:10000;';
+                    document.body.appendChild(textarea);
+                    textarea.select();
+                    alert('Ctrl+C로 복사 후 창을 닫으세요');
+                    textarea.addEventListener('blur', () => textarea.remove());
+                }
+            });
+
+            // Save MD Full button (with full tool details)
+            document.getElementById('saveMdFullBtn').addEventListener('click', async () => {
+                const markdown = generateMarkdown(true); // fullMode = true
+                if (!markdown) return;
+
+                const sessionName = currentItem.customName || currentItem.preview || 'conversation';
+                const cleanName = sessionName.replace(/[<>:"/\\|?*]/g, '').substring(0, 50).trim();
+                const timestamp = new Date().toISOString().slice(0, 10);
+                const filename = `${cleanName}_full_${timestamp}.md`;
+
+                const btn = document.getElementById('saveMdFullBtn');
+
+                // Try File System Access API (native file picker)
+                if ('showSaveFilePicker' in window) {
+                    try {
+                        const handle = await window.showSaveFilePicker({
+                            suggestedName: filename,
+                            types: [{
+                                description: 'Markdown Files',
+                                accept: { 'text/markdown': ['.md'] }
+                            }]
+                        });
+
+                        const writable = await handle.createWritable();
+                        await writable.write(markdown);
+                        await writable.close();
+
+                        btn.classList.add('copied');
+                        btn.querySelector('span').textContent = 'Saved!';
+                        setTimeout(() => {
+                            btn.classList.remove('copied');
+                            btn.querySelector('span').textContent = 'Save Full';
+                        }, 2000);
+                        return;
+                    } catch (err) {
+                        if (err.name === 'AbortError') return;
+                        console.log('File picker failed, using download fallback:', err);
+                    }
+                }
+
+                // Fallback: standard download
+                const blob = new Blob([markdown], { type: 'text/markdown;charset=utf-8' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+
+                btn.classList.add('copied');
+                btn.querySelector('span').textContent = 'Saved!';
+                setTimeout(() => {
+                    btn.classList.remove('copied');
+                    btn.querySelector('span').textContent = 'Save Full';
+                }, 2000);
+            });
+
+            // Refresh index button - via API
+            document.getElementById('refreshIndexBtn').addEventListener('click', async () => {
+                const btn = document.getElementById('refreshIndexBtn');
+                btn.classList.add('loading');
+                btn.disabled = true;
+
+                try {
+                    const response = await fetch('/api/update-index', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' }
+                    });
+
+                    if (!response.ok) {
+                        const error = await response.json();
+                        alert(`인덱스 업데이트 실패: ${error.detail || '알 수 없는 오류'}`);
+                        return;
+                    }
+
+                    // Reload session index
+                    await loadSessionIndex();
+                    await loadSessionTags();
+                    buildTagFilter();
+
+                    console.log('Index updated successfully');
+                } catch (error) {
+                    alert(`인덱스 업데이트 실패: ${error.message}`);
+                } finally {
+                    btn.classList.remove('loading');
+                    btn.disabled = false;
+                }
+            });
+
+            // Auto-refresh: Update index and check for new sessions every 60 seconds
+            setInterval(async () => {
+                try {
+                    // First, update the index to detect new sessions
+                    await fetch('/api/update-index', { method: 'POST' });
+
+                    // Then reload data
+                    const prevCount = allItems.length;
+                    await loadSessionIndex();
+                    await loadSessionTags();
+
+                    const newCount = allItems.length;
+                    if (newCount !== prevCount) {
+                        console.log(`Auto-refresh: ${prevCount} → ${newCount} sessions`);
+                        buildTagFilter();
+                    }
+                } catch (err) {
+                    console.log('Auto-refresh failed:', err.message);
+                }
+            }, 60000);  // 60 seconds
+
+            // Rename session button - via API
+            document.getElementById('renameSessionBtn').addEventListener('click', async () => {
+                if (!currentItem || currentItem.type !== 'session') return;
+
+                const sessionId = currentItem.sessionId;
+                const currentName = currentItem.customName || '';
+                const defaultPreview = currentItem.preview?.substring(0, 50) || 'Untitled';
+
+                const newName = prompt(
+                    'Enter a name for this session:\n(Leave empty to remove custom name)',
+                    currentName || defaultPreview
+                );
+
+                if (newName === null) return; // Cancelled
+
+                try {
+                    const response = await fetch('/api/rename', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            session_id: sessionId,
+                            name: newName.trim() || null
+                        })
+                    });
+
+                    if (!response.ok) {
+                        const error = await response.json();
+                        alert(`이름 변경 실패: ${error.detail || '알 수 없는 오류'}`);
+                        return;
+                    }
+
+                    const result = await response.json();
+
+                    // Update local data
+                    if (result.action === 'renamed') {
+                        currentItem.customName = result.name;
+                    } else {
+                        delete currentItem.customName;
+                    }
+
+                    // Update UI
+                    document.getElementById('conversationTitle').textContent =
+                        currentItem.customName || currentItem.preview?.substring(0, 100) || 'Untitled';
+
+                    // Update tags (named tag appears/disappears based on customName)
+                    refreshHeaderTags(sessionId);
+
+                    // Refresh session list
+                    applyFilters();
+
+                    console.log(`Session ${result.action}: ${sessionId}`);
+                } catch (error) {
+                    alert(`이름 변경 실패: ${error.message}`);
+                }
+            });
+
+            // Delete session button - via API
+            document.getElementById('deleteSessionBtn').addEventListener('click', async () => {
+                if (!currentItem || currentItem.type !== 'session') return;
+
+                const sessionId = currentItem.sessionId;
+                const projectFolder = currentItem.projectFolder;
+                const fileName = currentItem.fileName;
+
+                // Confirm before deleting
+                const confirmed = confirm(
+                    `Delete this session?\n\n` +
+                    `Session: ${sessionId}\n` +
+                    `File: ${fileName}\n\n` +
+                    `This action cannot be undone.`
+                );
+
+                if (!confirmed) return;
+
+                try {
+                    const response = await fetch('/api/delete', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            session_id: sessionId,
+                            project_folder: projectFolder,
+                            file_name: fileName
+                        })
+                    });
+
+                    if (!response.ok) {
+                        const error = await response.json();
+                        alert(`삭제 실패: ${error.detail || '알 수 없는 오류'}`);
+                        return;
+                    }
+
+                    const result = await response.json();
+
+                    // Remove from local data
+                    const index = allItems.findIndex(i => i.sessionId === sessionId);
+                    if (index !== -1) {
+                        allItems.splice(index, 1);
+                    }
+
+                    // Remove from sessionTags
+                    delete sessionTags[sessionId];
+
+                    // Update tag filter dropdown
+                    buildTagFilter();
+
+                    // Clear detail view and refresh list
+                    currentItem = null;
+                    document.getElementById('conversationView').style.display = 'none';
+                    document.getElementById('emptyState').style.display = 'flex';
+                    applyFilters();
+
+                    console.log(`Deleted session: ${sessionId}`);
+                } catch (error) {
+                    alert(`삭제 실패: ${error.message}`);
+                }
+            });
+
+            // ===== MOBILE EVENT HANDLERS =====
+
+            // Mobile menu button (FAB)
+            const mobileMenuBtn = document.getElementById('mobileMenuBtn');
+            const mobileOverlay = document.getElementById('mobileOverlay');
+            const sidebar = document.querySelector('.sidebar');
+
+            function toggleMobileMenu() {
+                const isOpen = sidebar.classList.toggle('open');
+                mobileMenuBtn.classList.toggle('active', isOpen);
+                mobileOverlay.classList.toggle('show', isOpen);
+                document.body.style.overflow = isOpen ? 'hidden' : '';
+            }
+
+            function closeMobileMenu() {
+                sidebar.classList.remove('open');
+                mobileMenuBtn.classList.remove('active');
+                mobileOverlay.classList.remove('show');
+                document.body.style.overflow = '';
+            }
+
+            mobileMenuBtn.addEventListener('click', toggleMobileMenu);
+            mobileOverlay.addEventListener('click', closeMobileMenu);
+
+            // Close sidebar when a session is selected (on mobile)
+            document.getElementById('sessionList').addEventListener('click', (e) => {
+                const sessionItem = e.target.closest('.session-item');
+                if (sessionItem && window.innerWidth <= 900) {
+                    setTimeout(closeMobileMenu, 100);
+                }
+            });
+
+            // Mobile actions menu
+            const mobileActionsBtn = document.getElementById('mobileActionsBtn');
+            const mobileActionsMenu = document.getElementById('mobileActionsMenu');
+            const mobileActionsClose = document.getElementById('mobileActionsClose');
+
+            function showMobileActionsMenu() {
+                mobileActionsMenu.style.display = 'block';
+                mobileOverlay.classList.add('show');
+                document.body.style.overflow = 'hidden';
+                // Force reflow for animation
+                mobileActionsMenu.offsetHeight;
+                mobileActionsMenu.classList.add('show');
+            }
+
+            function hideMobileActionsMenu() {
+                mobileActionsMenu.classList.remove('show');
+                if (!sidebar.classList.contains('open')) {
+                    mobileOverlay.classList.remove('show');
+                    document.body.style.overflow = '';
+                }
+                setTimeout(() => {
+                    if (!mobileActionsMenu.classList.contains('show')) {
+                        mobileActionsMenu.style.display = 'none';
+                    }
+                }, 300);
+            }
+
+            // Use both click and touchend for better mobile response
+            mobileActionsBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                showMobileActionsMenu();
+            });
+            mobileActionsBtn.addEventListener('touchend', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                showMobileActionsMenu();
+            }, { passive: false });
+
+            mobileActionsClose.addEventListener('click', hideMobileActionsMenu);
+            mobileActionsClose.addEventListener('touchend', (e) => {
+                e.preventDefault();
+                hideMobileActionsMenu();
+            }, { passive: false });
+
+            // Close actions menu when overlay is clicked (if sidebar is not open)
+            mobileOverlay.addEventListener('click', () => {
+                if (mobileActionsMenu.classList.contains('show')) {
+                    hideMobileActionsMenu();
+                }
+            });
+
+            // Mobile action buttons - delegate to desktop buttons with touch support
+            function addMobileActionHandler(mobileId, desktopId, needsDelay = false) {
+                const mobileBtn = document.getElementById(mobileId);
+                const handler = (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    hideMobileActionsMenu();
+                    if (needsDelay) {
+                        setTimeout(() => {
+                            document.getElementById(desktopId).click();
+                        }, 300);
+                    } else {
+                        document.getElementById(desktopId).click();
+                    }
+                };
+                mobileBtn.addEventListener('click', handler);
+                mobileBtn.addEventListener('touchend', handler, { passive: false });
+            }
+
+            // Mobile Resume handlers - directly copy command and show toast
+            function handleMobileResume(skipPermissions) {
+                return async (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    hideMobileActionsMenu();
+
+                    const sessionId = document.getElementById('sessionIdDisplay')?.textContent;
+                    if (!sessionId || !currentItem) return;
+
+                    let projectPath = currentItem.project || '';
+                    if (projectPath && !projectPath.startsWith('/')) {
+                        projectPath = '/' + projectPath;
+                    }
+
+                    const skipFlag = skipPermissions ? ' --dangerously-skip-permissions' : '';
+                    const command = projectPath
+                        ? `cd "${projectPath}" && claude -r ${sessionId}${skipFlag}`
+                        : `claude -r ${sessionId}${skipFlag}`;
+
+                    try {
+                        await copyToClipboardMobile(command);
+                        showToast('명령어가 복사되었습니다');
+                    } catch (err) {
+                        console.error('Failed to copy:', err);
+                        showToast('복사 실패');
+                    }
+                };
+            }
+
+            // Clipboard copy with fallback for mobile
+            async function copyToClipboardMobile(text) {
+                // Try modern API first
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    try {
+                        await navigator.clipboard.writeText(text);
+                        return;
+                    } catch (e) {
+                        // Fall through to fallback
+                    }
+                }
+
+                // Fallback: create temporary textarea
+                const textarea = document.createElement('textarea');
+                textarea.value = text;
+                textarea.style.position = 'fixed';
+                textarea.style.left = '-9999px';
+                textarea.style.top = '0';
+                textarea.setAttribute('readonly', '');
+                document.body.appendChild(textarea);
+
+                // Select and copy
+                textarea.focus();
+                textarea.select();
+                textarea.setSelectionRange(0, text.length);
+
+                const success = document.execCommand('copy');
+                document.body.removeChild(textarea);
+
+                if (!success) {
+                    throw new Error('execCommand copy failed');
+                }
+            }
+
+            // Toast function
+            function showToast(message) {
+                const toast = document.getElementById('toast');
+                toast.textContent = message;
+                toast.classList.add('show');
+                setTimeout(() => {
+                    toast.classList.remove('show');
+                }, 2000);
+            }
+
+            const mobileResumeHandler = handleMobileResume(false);
+            const mobileResumeSkipHandler = handleMobileResume(true);
+
+            document.getElementById('mobileResumeBtn').addEventListener('click', mobileResumeHandler);
+            document.getElementById('mobileResumeBtn').addEventListener('touchend', mobileResumeHandler, { passive: false });
+            document.getElementById('mobileResumeSkipBtn').addEventListener('click', mobileResumeSkipHandler);
+            document.getElementById('mobileResumeSkipBtn').addEventListener('touchend', mobileResumeSkipHandler, { passive: false });
+
+            addMobileActionHandler('mobileRenameBtn', 'renameSessionBtn', true);
+            addMobileActionHandler('mobileCopyMdBtn', 'copyMdBtn');
+            addMobileActionHandler('mobileSaveMdBtn', 'saveMdBtn');
+            addMobileActionHandler('mobileDeleteBtn', 'deleteSessionBtn', true);
+
+            // Handle escape key for mobile menus
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') {
+                    if (mobileActionsMenu.classList.contains('show')) {
+                        hideMobileActionsMenu();
+                    } else if (sidebar.classList.contains('open')) {
+                        closeMobileMenu();
+                    }
+                }
+            });
+
+            // Handle window resize - close mobile menu if switching to desktop
+            window.addEventListener('resize', () => {
+                if (window.innerWidth > 900) {
+                    closeMobileMenu();
+                    hideMobileActionsMenu();
+                }
+            });
+        }
+
+        function formatDateValue(date) {
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        }
+
+        function updateDateFilterButton() {
+            const btn = document.getElementById('dateFilterBtn');
+            if (dateFrom || dateTo) {
+                let text = '';
+                if (dateFrom && dateTo) {
+                    text = `${formatShortDate(dateFrom)} - ${formatShortDate(dateTo)}`;
+                } else if (dateFrom) {
+                    text = `From ${formatShortDate(dateFrom)}`;
+                } else {
+                    text = `Until ${formatShortDate(dateTo)}`;
+                }
+                btn.querySelector('span').textContent = text;
+                btn.classList.add('active');
+            } else {
+                btn.querySelector('span').textContent = 'All Dates';
+                btn.classList.remove('active');
+            }
+        }
+
+        function buildProjectFilter() {
+            const projects = {};
+            allItems.forEach(item => {
+                const p = item.project || 'Unknown';
+                projects[p] = (projects[p] || 0) + 1;
+            });
+
+            const dropdown = document.getElementById('projectDropdown');
+            dropdown.innerHTML = `
+                <div class="project-option ${!selectedProject ? 'selected' : ''}" data-project="">
+                    <span>All Projects</span>
+                    <span class="project-count">${allItems.length}</span>
+                </div>
+            `;
+
+            Object.entries(projects)
+                .sort((a, b) => b[1] - a[1])
+                .forEach(([project, count]) => {
+                    const name = project.split('/').pop() || project;
+                    const el = document.createElement('div');
+                    el.className = `project-option ${selectedProject === project ? 'selected' : ''}`;
+                    el.dataset.project = project;
+                    el.innerHTML = `
+                        <span title="${project}">${name}</span>
+                        <span class="project-count">${count}</span>
+                    `;
+                    el.addEventListener('click', () => selectProject(project));
+                    dropdown.appendChild(el);
+                });
+
+            dropdown.querySelector('[data-project=""]').addEventListener('click', () => selectProject(null));
+        }
+
+        function selectProject(project) {
+            selectedProject = project;
+            const btn = document.getElementById('projectFilterBtn');
+            const name = project ? project.split('/').pop() : 'All Projects';
+            btn.querySelector('span').textContent = name;
+            btn.classList.toggle('active', !!project);
+            document.getElementById('projectDropdown').classList.remove('show');
+            buildProjectFilter();
+            applyFilters();
+        }
+
+        function buildTagFilter() {
+            const tagCounts = getAllTags();
+            const dropdown = document.getElementById('tagOptionsList');
+
+            // Filter tags by search query
+            let filteredTags = Object.entries(tagCounts);
+            if (tagSearchQuery) {
+                filteredTags = filteredTags.filter(([tag]) =>
+                    tag.toLowerCase().includes(tagSearchQuery)
+                );
+            }
+
+            // Sort by count (descending), then by name
+            filteredTags.sort((a, b) => {
+                if (b[1] !== a[1]) return b[1] - a[1];
+                return a[0].localeCompare(b[0]);
+            });
+
+            if (filteredTags.length === 0) {
+                dropdown.innerHTML = '<div style="padding: 12px; color: var(--text-muted); text-align: center;">No tags found</div>';
+                return;
+            }
+
+            dropdown.innerHTML = filteredTags.map(([tag, count]) => `
+                <label class="tag-option">
+                    <input type="checkbox" value="${escapeHtml(tag)}" ${selectedTags.includes(tag) ? 'checked' : ''}>
+                    <span class="tag-option-label ${tag === 'named' ? 'named-tag' : ''}">${escapeHtml(tag)}</span>
+                    <span class="tag-option-count">${count}</span>
+                </label>
+            `).join('');
+
+            // Add event listeners to checkboxes
+            dropdown.querySelectorAll('input[type="checkbox"]').forEach(checkbox => {
+                checkbox.addEventListener('change', (e) => {
+                    const tag = e.target.value;
+                    if (e.target.checked) {
+                        if (!selectedTags.includes(tag)) {
+                            selectedTags.push(tag);
+                        }
+                    } else {
+                        selectedTags = selectedTags.filter(t => t !== tag);
+                    }
+                    updateTagFilterButton();
+                    applyFilters();
+                });
+            });
+        }
+
+        function updateTagFilterButton() {
+            const btn = document.getElementById('tagFilterBtn');
+            if (selectedTags.length === 0) {
+                btn.querySelector('span').textContent = 'All Tags';
+                btn.classList.remove('active');
+            } else if (selectedTags.length === 1) {
+                btn.querySelector('span').textContent = selectedTags[0];
+                btn.classList.add('active');
+            } else {
+                btn.querySelector('span').textContent = `${selectedTags.length} tags`;
+                btn.classList.add('active');
+            }
+        }
+
+        // Update description via API
+        async function updateSessionDescription(sessionId, description) {
+            try {
+                const response = await fetch('/api/description', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ session_id: sessionId, description: description })
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    alert(`설명 업데이트 실패: ${error.detail || '알 수 없는 오류'}`);
+                    return false;
+                }
+
+                const result = await response.json();
+
+                // Update local sessionDescriptions
+                if (result.action === 'removed') {
+                    delete sessionDescriptions[sessionId];
+                } else {
+                    sessionDescriptions[sessionId] = result.description;
+                }
+
+                // Refresh UI
+                renderHeaderDescription();
+                applyFilters();  // Refresh session list
+
+                return true;
+            } catch (error) {
+                alert(`설명 업데이트 실패: ${error.message}`);
+                return false;
+            }
+        }
+
+        // Prompt user to edit description
+        function promptEditDescription(sessionId) {
+            const currentDescription = getSessionDescription(sessionId);
+            const newDescription = prompt(
+                '세션 설명을 입력하세요:\n(여러 줄 입력 시 Enter 대신 \\n 사용)',
+                currentDescription
+            );
+
+            if (newDescription !== null) {
+                // Replace literal \n with actual newlines
+                const processedDescription = newDescription.replace(/\\n/g, '\n');
+                updateSessionDescription(sessionId, processedDescription.trim() || null);
+            }
+        }
+
+        // Render header description for current session
+        function renderHeaderDescription() {
+            const container = document.getElementById('headerDescriptionRow');
+            if (!currentItem || currentItem.type !== 'session') {
+                container.style.display = 'none';
+                return;
+            }
+
+            const description = getSessionDescription(currentItem.sessionId);
+            const sessionId = currentItem.sessionId;
+
+            if (description) {
+                container.innerHTML = `
+                    <div class="header-description-content">${escapeHtml(description).replace(/\n/g, '<br>')}</div>
+                    <button class="edit-description-btn" id="editDescriptionBtn" title="설명 편집">
+                        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
+                    </button>
+                `;
+            } else {
+                container.innerHTML = `
+                    <div class="header-description-placeholder" id="addDescriptionPlaceholder">+ 설명 추가...</div>
+                `;
+            }
+
+            container.style.display = 'flex';
+
+            // Attach event listeners
+            const editBtn = document.getElementById('editDescriptionBtn');
+            if (editBtn) {
+                editBtn.addEventListener('click', () => promptEditDescription(sessionId));
+            }
+
+            const placeholder = document.getElementById('addDescriptionPlaceholder');
+            if (placeholder) {
+                placeholder.addEventListener('click', () => promptEditDescription(sessionId));
+            }
+        }
+
+        // Render header tags for current session
+        function renderHeaderTags() {
+            const container = document.getElementById('headerTagsRow');
+            if (!currentItem || currentItem.type !== 'session') {
+                container.style.display = 'none';
+                return;
+            }
+
+            const tags = getSessionTags(currentItem.sessionId, currentItem.customName);
+
+            let html = tags.map(tag => `
+                <span class="header-tag ${tag === 'named' ? 'named-tag' : ''}" data-tag="${escapeHtml(tag)}">
+                    ${escapeHtml(tag)}
+                    ${tag !== 'named' ? '<span class="tag-remove" title="Remove tag">&times;</span>' : ''}
+                </span>
+            `).join('');
+
+            html += `
+                <button class="add-tag-btn" id="addTagBtn">
+                    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                    </svg>
+                    Add Tag
+                </button>
+            `;
+
+            container.innerHTML = html;
+            container.style.display = 'flex';
+
+            // Add event listeners
+            container.querySelectorAll('.tag-remove').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const tag = e.target.closest('.header-tag').dataset.tag;
+                    removeTagFromSession(currentItem.sessionId, tag);
+                });
+            });
+
+            const addBtn = document.getElementById('addTagBtn');
+            if (addBtn) {
+                addBtn.addEventListener('click', () => {
+                    const newTag = prompt('태그 입력 (쉼표로 여러 개 구분 가능)\n예: AI, LLM, 파인튜닝, 수학');
+                    if (newTag && newTag.trim()) {
+                        addTagToSession(currentItem.sessionId, newTag.trim());
+                    }
+                });
+            }
+        }
+
+        function applyFilters() {
+            filteredItems = allItems.filter(item => {
+                // Type filter
+                if (showType === 'sessions' && item.type !== 'session') return false;
+                if (showType === 'history' && item.type !== 'history') return false;
+
+                // Get tags for this item
+                const itemTags = item.type === 'session'
+                    ? getSessionTags(item.sessionId, item.customName)
+                    : [];
+                const itemTagsLower = itemTags.map(t => t.toLowerCase());
+
+                // Tag filter - session must have ALL selected tags
+                if (selectedTags.length > 0) {
+                    if (item.type !== 'session') return false;
+                    const hasAllTags = selectedTags.every(tag =>
+                        itemTags.includes(tag)
+                    );
+                    if (!hasAllTags) return false;
+                }
+
+                // Search filter - based on search scope
+                if (searchQuery) {
+                    const customName = (item.customName || '').toLowerCase();
+                    const preview = (item.preview || item.display || '').toLowerCase();
+                    const project = (item.project || '').toLowerCase();
+                    const searchableContent = (item.searchableContent || '').toLowerCase();
+                    const description = item.type === 'session'
+                        ? getSessionDescription(item.sessionId).toLowerCase()
+                        : '';
+
+                    let matchFound = false;
+
+                    switch (searchScope) {
+                        case 'title':
+                            // Title = customName + preview (first message)
+                            matchFound = customName.includes(searchQuery) ||
+                                         preview.includes(searchQuery);
+                            break;
+                        case 'content':
+                            // Content only (full conversation text)
+                            matchFound = searchableContent.includes(searchQuery);
+                            break;
+                        case 'title_content':
+                            // Title + Content
+                            matchFound = customName.includes(searchQuery) ||
+                                         preview.includes(searchQuery) ||
+                                         searchableContent.includes(searchQuery);
+                            break;
+                        case 'tags':
+                            // Tags only
+                            matchFound = itemTagsLower.some(t => t.includes(searchQuery));
+                            break;
+                        case 'description':
+                            // Description only
+                            matchFound = description.includes(searchQuery);
+                            break;
+                        case 'all':
+                        default:
+                            // All: Title + Content + Tags + Description + Project
+                            matchFound = customName.includes(searchQuery) ||
+                                         preview.includes(searchQuery) ||
+                                         project.includes(searchQuery) ||
+                                         searchableContent.includes(searchQuery) ||
+                                         description.includes(searchQuery) ||
+                                         itemTagsLower.some(t => t.includes(searchQuery));
+                            break;
+                    }
+
+                    if (!matchFound) {
+                        return false;
+                    }
+                }
+
+                // Project filter
+                if (selectedProject && item.project !== selectedProject) {
+                    return false;
+                }
+
+                // Date filter
+                if (dateFrom || dateTo) {
+                    let itemDate;
+                    if (item.type === 'session') {
+                        itemDate = item.lastTimestamp ? new Date(item.lastTimestamp) : new Date(item.modifiedTime * 1000);
+                    } else {
+                        itemDate = item.timestampISO ? new Date(item.timestampISO) : new Date(item.timestamp);
+                    }
+
+                    if (dateFrom) {
+                        const from = new Date(dateFrom);
+                        from.setHours(0, 0, 0, 0);
+                        if (itemDate < from) return false;
+                    }
+
+                    if (dateTo) {
+                        const to = new Date(dateTo);
+                        to.setHours(23, 59, 59, 999);
+                        if (itemDate > to) return false;
+                    }
+                }
+
+                return true;
+            });
+
+            document.getElementById('filteredCount').textContent = filteredItems.length;
+            renderSessionList();
+        }
+
+        function renderSessionList() {
+            const container = document.getElementById('sessionList');
+
+            if (filteredItems.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-title">No items found</div>
+                        <p>Try adjusting your filters</p>
+                    </div>
+                `;
+                return;
+            }
+
+            // Group by date
+            const groups = {};
+            filteredItems.forEach(item => {
+                let date;
+                if (item.type === 'session') {
+                    date = item.lastTimestamp
+                        ? new Date(item.lastTimestamp)
+                        : new Date(item.modifiedTime * 1000);
+                } else {
+                    date = item.timestampISO ? new Date(item.timestampISO) : new Date(item.timestamp);
+                }
+                const dateKey = formatDate(date);
+                if (!groups[dateKey]) groups[dateKey] = [];
+                groups[dateKey].push(item);
+            });
+
+            let html = '';
+            Object.entries(groups).forEach(([date, items]) => {
+                html += `<div class="session-group">`;
+                html += `<div class="session-group-header">${date} (${items.length})</div>`;
+
+                items.forEach(item => {
+                    const isSession = item.type === 'session';
+                    let time;
+                    if (isSession) {
+                        time = item.lastTimestamp
+                            ? formatTime(new Date(item.lastTimestamp))
+                            : formatTime(new Date(item.modifiedTime * 1000));
+                    } else {
+                        time = item.timestampISO
+                            ? formatTime(new Date(item.timestampISO))
+                            : formatTime(new Date(item.timestamp));
+                    }
+
+                    const projectName = item.project ? item.project.split('/').pop() : '';
+                    const preview = highlightSearch(escapeHtml(item.preview || item.display || 'No preview'), searchQuery);
+                    const itemId = isSession ? item.sessionId : item.historyId;
+                    const isActive = currentItem && (currentItem.sessionId === itemId || currentItem.historyId === itemId);
+                    const customName = item.customName ? escapeHtml(item.customName) : null;
+
+                    if (isSession) {
+                        // Get tags for this session (excluding 'named' since we show it separately)
+                        const itemTags = getSessionTags(item.sessionId, item.customName).filter(t => t !== 'named');
+                        const tagsHtml = itemTags.length > 0
+                            ? `<div class="session-tags">${itemTags.map(t => `<span class="session-tag">${escapeHtml(t)}</span>`).join('')}</div>`
+                            : '';
+
+                        // Get description for this session
+                        const itemDescription = getSessionDescription(item.sessionId);
+                        const descriptionHtml = itemDescription
+                            ? `<div class="session-description">${highlightSearch(escapeHtml(itemDescription), searchQuery)}</div>`
+                            : '';
+
+                        html += `
+                            <div class="session-item ${isActive ? 'active' : ''}" data-type="session" data-session-id="${item.sessionId}" data-project-folder="${item.projectFolder}" data-file-name="${item.fileName}">
+                                <div class="session-item-header">
+                                    <span class="session-time">${time}</span>
+                                    <span class="session-messages">${item.messageCount || 0} msgs</span>
+                                </div>
+                                <div class="session-preview">${customName ? `<strong>${customName}</strong><span class="custom-name-badge">named</span><br><span style="opacity:0.7">${preview}</span>` : preview}</div>
+                                ${descriptionHtml}
+                                ${tagsHtml}
+                                ${projectName ? `<div class="session-project">
+                                    <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                                    </svg>
+                                    ${projectName}
+                                </div>` : ''}
+                            </div>
+                        `;
+                    } else {
+                        // History-only entry
+                        html += `
+                            <div class="session-item history-only ${isActive ? 'active' : ''}" data-type="history" data-history-id="${item.historyId}" data-display="${escapeHtml(item.display || '')}" data-timestamp="${item.timestampISO || ''}">
+                                <div class="session-item-header">
+                                    <span class="session-time">${time}</span>
+                                    <span class="session-messages history-badge">history only</span>
+                                </div>
+                                <div class="session-preview">${preview}</div>
+                                ${projectName ? `<div class="session-project">
+                                    <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                                    </svg>
+                                    ${projectName}
+                                </div>` : ''}
+                            </div>
+                        `;
+                    }
+                });
+
+                html += `</div>`;
+            });
+
+            container.innerHTML = html;
+
+            // Add click handlers
+            container.querySelectorAll('.session-item').forEach(el => {
+                el.addEventListener('click', () => {
+                    const type = el.dataset.type;
+                    if (type === 'session') {
+                        const sessionId = el.dataset.sessionId;
+                        const projectFolder = el.dataset.projectFolder;
+                        const fileName = el.dataset.fileName;
+                        loadSession(sessionId, projectFolder, fileName);
+                    } else {
+                        const historyId = el.dataset.historyId;
+                        const display = el.dataset.display;
+                        const timestamp = el.dataset.timestamp;
+                        showHistoryEntry(historyId, display, timestamp);
+                    }
+                });
+            });
+        }
+
+        async function loadSession(sessionId, projectFolder, fileName) {
+            // Update UI
+            document.querySelectorAll('.session-item').forEach(el => {
+                el.classList.toggle('active', el.dataset.sessionId === sessionId);
+            });
+
+            document.getElementById('emptyState').style.display = 'none';
+            document.getElementById('conversationView').style.display = 'flex';
+            document.getElementById('conversationContent').innerHTML = `
+                <div class="loading">
+                    <div class="loading-spinner"></div>
+                </div>
+            `;
+
+            try {
+                const response = await fetch(`projects/${projectFolder}/${fileName}`);
+                const text = await response.text();
+
+                currentMessages = [];
+                const lines = text.trim().split('\n');
+
+                for (const line of lines) {
+                    try {
+                        const data = JSON.parse(line);
+                        if (data.type === 'user' || data.type === 'assistant') {
+                            currentMessages.push(data);
+                        }
+                    } catch (e) {
+                        // Skip invalid lines
+                    }
+                }
+
+                currentItem = allItems.find(s => s.sessionId === sessionId);
+
+                // Update header
+                const firstUserMsg = currentMessages.find(m => m.type === 'user');
+                let title;
+                if (currentItem?.customName) {
+                    title = currentItem.customName;
+                } else {
+                    title = firstUserMsg ?
+                        (typeof firstUserMsg.message.content === 'string'
+                            ? firstUserMsg.message.content.substring(0, 60)
+                            : 'Conversation') + '...'
+                        : 'Conversation';
+                }
+                document.getElementById('conversationTitle').textContent = title;
+                document.getElementById('conversationMeta').textContent = `${currentMessages.length} messages • ${currentItem?.project || 'Unknown project'}`;
+
+                // Show session ID with copy button
+                document.getElementById('sessionIdDisplay').textContent = sessionId;
+                document.getElementById('sessionIdDisplay').title = `Session ID: ${sessionId}`;
+                document.getElementById('sessionIdRow').style.display = 'flex';
+
+                // Update button tooltip to show full command
+                let projectPath = currentItem?.project || '';
+                if (projectPath && !projectPath.startsWith('/')) {
+                    projectPath = '/' + projectPath;
+                }
+                const fullCommand = projectPath
+                    ? `cd "${projectPath}" && claude -r ${sessionId}`
+                    : `claude -r ${sessionId}`;
+                document.getElementById('copyResumeBtn').title = `Copy: ${fullCommand}`;
+
+                // Update delete button tooltip
+                const deleteFilePath = `~/.claude/projects/${projectFolder}/${fileName}`;
+                document.getElementById('deleteSessionBtn').title = `Copy: rm "${deleteFilePath}"`;
+                document.getElementById('deleteSessionBtn').style.display = 'flex';
+
+                // Show rename button
+                document.getElementById('renameSessionBtn').style.display = 'flex';
+
+                // Render header tags and description
+                renderHeaderTags();
+                renderHeaderDescription();
+
+                renderConversation();
+
+                // Show scroll buttons
+                document.getElementById('scrollButtons').classList.add('visible');
+            } catch (error) {
+                console.error('Error loading session:', error);
+                document.getElementById('conversationContent').innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-title">Failed to load conversation</div>
+                        <p>${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+
+        function showHistoryEntry(historyId, display, timestamp) {
+            // Update UI
+            document.querySelectorAll('.session-item').forEach(el => {
+                el.classList.toggle('active', el.dataset.historyId === historyId);
+            });
+
+            document.getElementById('emptyState').style.display = 'none';
+            document.getElementById('conversationView').style.display = 'flex';
+
+            currentItem = allItems.find(i => i.historyId === historyId);
+            currentMessages = [];
+
+            // Create a single user message from history
+            if (display) {
+                currentMessages.push({
+                    type: 'user',
+                    timestamp: timestamp,
+                    message: { role: 'user', content: display }
+                });
+            }
+
+            const title = display ? display.substring(0, 60) + (display.length > 60 ? '...' : '') : 'History Entry';
+            document.getElementById('conversationTitle').textContent = title;
+            document.getElementById('conversationMeta').textContent = `History only (no full conversation) • ${currentItem?.project || 'Unknown project'}`;
+
+            // Hide session ID row for history-only entries (not resumable, not deletable, not renamable)
+            document.getElementById('sessionIdRow').style.display = 'none';
+            document.getElementById('deleteSessionBtn').style.display = 'none';
+            document.getElementById('renameSessionBtn').style.display = 'none';
+            document.getElementById('headerTagsRow').style.display = 'none';
+            document.getElementById('headerDescriptionRow').style.display = 'none';
+
+            renderConversation();
+
+            // Show scroll buttons
+            document.getElementById('scrollButtons').classList.add('visible');
+        }
+
+        function renderConversation() {
+            const container = document.getElementById('conversationContent');
+
+            let matchCount = 0;
+            let html = '';
+
+            currentMessages.forEach((msg, index) => {
+                const isUser = msg.type === 'user';
+                const role = isUser ? 'User' : 'Claude';
+
+                // Show date+time if not today, time only if today
+                let time = '';
+                if (msg.timestamp) {
+                    const msgDate = new Date(msg.timestamp);
+                    const today = new Date();
+
+                    if (msgDate.toDateString() === today.toDateString()) {
+                        // Today - show time only
+                        time = formatTime(msgDate);
+                    } else {
+                        // Not today - show date + time
+                        time = formatDateTime(msgDate);
+                    }
+                }
+                
+                let content = '';
+                let hasTextContent = false;  // Track if message has actual text (not just tool calls)
+                const msgContent = msg.message?.content;
+
+                if (typeof msgContent === 'string') {
+                    content = msgContent;
+                    hasTextContent = msgContent.trim().length > 0;
+                } else if (Array.isArray(msgContent)) {
+                    // Handle array content (tool results, etc.)
+                    msgContent.forEach(item => {
+                        if (item.type === 'text') {
+                            content += item.text + '\n';
+                            if (item.text.trim()) hasTextContent = true;
+                        } else if (item.type === 'tool_use') {
+                            content += `__TOOL_MARKER_START__${item.name}__TOOL_MARKER_END__\n`;
+                        } else if (item.type === 'tool_result') {
+                            // Skip tool results in display for cleaner view
+                        }
+                    });
+                }
+
+                // Skip empty messages
+                if (!content.trim()) {
+                    return;
+                }
+
+                // Check if matches search
+                const contentLower = content.toLowerCase();
+                const matches = !conversationSearchQuery || contentLower.includes(conversationSearchQuery);
+                if (conversationSearchQuery && matches) matchCount++;
+
+                // Check if markdown rendering is enabled
+                const renderMarkdownEnabled = document.getElementById('renderMarkdown')?.checked || false;
+
+                // Process content based on markdown mode
+                let displayContent;
+                if (renderMarkdownEnabled) {
+                    // Remove tool markers before markdown parsing
+                    let cleanContent = content.replace(/__TOOL_MARKER_START__.+?__TOOL_MARKER_END__\n?/g, '');
+                    // Parse markdown (marked.parse handles escaping internally)
+                    displayContent = marked.parse(cleanContent, { breaks: true, gfm: true });
+                    // Highlight search if needed (after markdown parsing)
+                    if (conversationSearchQuery) {
+                        displayContent = highlightSearch(displayContent, conversationSearchQuery);
+                    }
+                } else {
+                    // Original raw mode with escaping
+                    displayContent = conversationSearchQuery
+                        ? highlightSearch(escapeHtml(content), conversationSearchQuery)
+                        : escapeHtml(content);
+
+                    // Convert tool markers to HTML (after escaping)
+                    displayContent = displayContent.replace(
+                        /__TOOL_MARKER_START__(.+?)__TOOL_MARKER_END__/g,
+                        '<span class="tool-indicator">[Tool: $1]</span>'
+                    );
+                }
+
+                // Add tool-only-message class if no text content (only tool calls)
+                const toolOnlyClass = !hasTextContent ? 'tool-only-message' : '';
+                const markdownClass = renderMarkdownEnabled ? 'markdown-rendered' : '';
+
+                html += `
+                    <div class="message ${isUser ? 'user' : 'assistant'} ${toolOnlyClass}" style="${!matches && conversationSearchQuery ? 'opacity: 0.3;' : ''}">
+                        <div class="message-header">
+                            <div class="message-avatar">${isUser ? 'U' : 'C'}</div>
+                            <span class="message-role">${role}</span>
+                            <span class="message-time">${time}</span>
+                        </div>
+                        <div class="message-content ${markdownClass}">${displayContent}</div>
+                        ${renderToolUse(msg)}
+                    </div>
+                `;
+            });
+
+            container.innerHTML = html || '<div class="empty-state"><p>No messages in this conversation</p></div>';
+
+            // Update search info
+            const searchInfo = document.getElementById('searchResultsInfo');
+            if (conversationSearchQuery) {
+                searchInfo.textContent = `${matchCount} message${matchCount !== 1 ? 's' : ''} matching "${conversationSearchQuery}"`;
+            } else {
+                searchInfo.textContent = '';
+            }
+        }
+
+        function renderToolUse(msg) {
+            if (msg.type !== 'assistant') return '';
+
+            const content = msg.message?.content;
+            if (!Array.isArray(content)) return '';
+
+            let html = '';
+            content.forEach(item => {
+                if (item.type === 'tool_use') {
+                    const inputStr = typeof item.input === 'string'
+                        ? item.input
+                        : JSON.stringify(item.input, null, 2);
+
+                    html += `
+                        <div class="tool-use">
+                            <div class="tool-use-header">
+                                <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                </svg>
+                                <span class="tool-use-name">${item.name}</span>
+                                <button class="tool-use-toggle" title="Toggle details">
+                                    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                                    </svg>
+                                </button>
+                            </div>
+                            <div class="tool-use-input">${escapeHtml(inputStr.substring(0, 500))}${inputStr.length > 500 ? '...' : ''}</div>
+                        </div>
+                    `;
+                }
+            });
+
+            return html;
+        }
+
+        // Utility functions
+        function formatDate(date) {
+            const today = new Date();
+            const yesterday = new Date(today);
+            yesterday.setDate(yesterday.getDate() - 1);
+
+            if (date.toDateString() === today.toDateString()) {
+                return 'Today';
+            } else if (date.toDateString() === yesterday.toDateString()) {
+                return 'Yesterday';
+            } else {
+                return date.toLocaleDateString('en-US', { 
+                    weekday: 'long',
+                    month: 'short', 
+                    day: 'numeric',
+                    year: date.getFullYear() !== today.getFullYear() ? 'numeric' : undefined
+                });
+            }
+        }
+
+        function formatTime(date) {
+            return date.toLocaleTimeString('en-US', {
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        }
+
+        function formatDateTime(date) {
+            return date.toLocaleDateString('en-US', {
+                month: 'short',
+                day: 'numeric'
+            }) + ' ' + date.toLocaleTimeString('en-US', {
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        }
+
+        function formatShortDate(dateStr) {
+            const date = new Date(dateStr);
+            return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        }
+
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function highlightSearch(text, query) {
+            if (!query) return text;
+            const regex = new RegExp(`(${escapeRegex(query)})`, 'gi');
+            return text.replace(regex, '<mark>$1</mark>');
+        }
+
+        function escapeRegex(string) {
+            return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        }
+
+        function debounce(fn, delay) {
+            let timeout;
+            return function(...args) {
+                clearTimeout(timeout);
+                timeout = setTimeout(() => fn.apply(this, args), delay);
+            };
+        }
+    </script>
+</body>
+</html>

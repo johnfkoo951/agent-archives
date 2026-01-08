@@ -1,0 +1,29 @@
+# Dependencies
+app/node_modules/
+
+# Build outputs
+app/dist/
+
+# Data files (user-specific)
+sessions-index.json
+session-tags.json
+session-names.json
+session-descriptions.json
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Logs
+*.log
+npm-debug.log*
+
+# Temporary
+*.tmp
+*.temp
