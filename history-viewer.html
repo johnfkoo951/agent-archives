@@ -5801,7 +5801,7 @@
                 btn.classList.toggle('active', btn.dataset.agent === savedAgentUI);
             });
 
-            function updateAgentSelection(agent, reload = true) {
+            async function updateAgentSelection(agent, reload = true) {
                 // Update global state
                 currentAgent = agent;
 
@@ -5823,8 +5823,11 @@
                     currentMessages = [];
                     switchView('sessions');
 
-                    // Reload session data
-                    loadSessionIndex();
+                    // Clear session list immediately to show loading state
+                    document.getElementById('sessionList').innerHTML = '<div class="loading-state">Loading sessions...</div>';
+
+                    // Reload session data and wait for completion
+                    await loadSessionIndex();
                 }
             }
 
@@ -6776,52 +6779,7 @@
                 }
             });
 
-            // Auto-refresh: Update index and check for new sessions
-            // Uses configurable interval from settings (0 = disabled)
-            let autoRefreshIntervalId = null;
-            
-            function startAutoRefresh() {
-                // Clear existing interval if any
-                if (autoRefreshIntervalId) {
-                    clearInterval(autoRefreshIntervalId);
-                    autoRefreshIntervalId = null;
-                }
-                
-                // Get interval from settings (in seconds), default 60
-                const intervalSeconds = parseInt(localStorage.getItem('settings-auto-refresh') || '60');
-                
-                // 0 means disabled
-                if (intervalSeconds <= 0) {
-                    console.log('Auto-refresh disabled');
-                    return;
-                }
-                
-                const intervalMs = intervalSeconds * 1000;
-                console.log(`Auto-refresh enabled: every ${intervalSeconds}s`);
-                
-                autoRefreshIntervalId = setInterval(async () => {
-                    try {
-                        // First, update the index to detect new sessions
-                        await fetch('/api/update-index', { method: 'POST' });
 
-                        // Then reload data
-                        const prevCount = allItems.length;
-                        await loadSessionIndex();
-                        await loadSessionTags();
-
-                        const newCount = allItems.length;
-                        if (newCount !== prevCount) {
-                            console.log(`Auto-refresh: ${prevCount} → ${newCount} sessions`);
-                            buildTagFilter();
-                        }
-                    } catch (err) {
-                        console.log('Auto-refresh failed:', err.message);
-                    }
-                }, intervalMs);
-            }
-            
-            // Start auto-refresh on load
-            startAutoRefresh();
 
             // Rename session button - opens modal
             document.getElementById('renameSessionBtn').addEventListener('click', () => {

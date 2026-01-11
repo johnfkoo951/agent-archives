@@ -46,7 +46,7 @@ UPDATE_INDEX_SCRIPT = HISTORY_DIR / 'update-index.py'
 # 파일 경로 - OpenCode
 OPENCODE_DIR = Path.home() / '.local' / 'share' / 'opencode'
 OPENCODE_STORAGE_DIR = OPENCODE_DIR / 'storage'
-OPENCODE_SESSION_DIR = OPENCODE_STORAGE_DIR / 'session' / 'global'
+OPENCODE_SESSION_DIR = OPENCODE_STORAGE_DIR / 'session'  # Contains global/ and project-specific subdirs
 OPENCODE_MESSAGE_DIR = OPENCODE_STORAGE_DIR / 'message'
 OPENCODE_PART_DIR = OPENCODE_STORAGE_DIR / 'part'
 OPENCODE_LOG_DIR = OPENCODE_DIR / 'log'
@@ -497,7 +497,7 @@ async def get_opencode_sessions():
         return JSONResponse([])
 
     sessions = []
-    for session_file in OPENCODE_SESSION_DIR.glob("ses_*.json"):
+    for session_file in OPENCODE_SESSION_DIR.glob("*/ses_*.json"):
         try:
             with open(session_file, 'r', encoding='utf-8') as f:
                 session_data = json.load(f)
@@ -715,6 +715,52 @@ async def serve_local_file(path: str):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+# Active Sessions API - 실행 중인 claude/opencode 프로세스 감지
+@app.get("/api/active-sessions")
+async def get_active_sessions():
+    """실행 중인 Claude/OpenCode 세션의 작업 디렉토리 반환"""
+    import re
+    
+    active_projects = []
+    
+    try:
+        pgrep_result = subprocess.run(
+            ["pgrep", "-f", "^claude|^opencode$"],
+            capture_output=True, text=True
+        )
+        pids = pgrep_result.stdout.strip().split('\n')
+        pids = [p for p in pids if p]
+        
+        for pid in pids:
+            try:
+                lsof_result = subprocess.run(
+                    ["lsof", "-p", pid],
+                    capture_output=True, text=True
+                )
+                for line in lsof_result.stdout.split('\n'):
+                    if ' cwd ' in line:
+                        parts = line.split()
+                        if len(parts) >= 9:
+                            cwd = parts[-1]
+                            ps_result = subprocess.run(
+                                ["ps", "-p", pid, "-o", "comm="],
+                                capture_output=True, text=True
+                            )
+                            cmd = ps_result.stdout.strip()
+                            if cwd and cwd.startswith('/'):
+                                active_projects.append({
+                                    "pid": int(pid),
+                                    "cwd": cwd,
+                                    "tool": "opencode" if "opencode" in cmd else "claude"
+                                })
+                        break
+            except:
+                continue
+    except:
+        pass
+    
+    return {"active": active_projects}
 
 # projects 폴더 정적 파일 서빙
 app.mount("/projects", StaticFiles(directory=str(CLAUDE_DIR / 'projects')), name="projects")
