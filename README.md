@@ -2,6 +2,18 @@
 
 Claude Code와 OpenCode 세션 히스토리를 탐색하는 macOS 데스크톱 앱.
 
+## 스크린샷
+
+### 세션 뷰어
+| Light Mode | Dark Mode |
+|------------|-----------|
+| ![Sessions Light](assets/screenshot-sessions-light.png) | ![Sessions Dark](assets/screenshot-sessions-dark.png) |
+
+### 대시보드
+| Light Mode | Dark Mode |
+|------------|-----------|
+| ![Dashboard Light](assets/screenshot-dashboard-light.png) | ![Dashboard Dark](assets/screenshot-dashboard-dark.png) |
+
 ## 설치
 
 ### DMG 다운로드 (권장)
