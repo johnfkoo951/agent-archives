@@ -5247,8 +5247,26 @@
 
         function isSessionActive(item) {
             if (!item.project || activeSessions.length === 0) return false;
-            const normalizedProject = '/' + item.project.replace(/^\/+/, '');
-            return activeSessions.some(a => normalizedProject === a.cwd || a.cwd.endsWith(item.project));
+            
+            // Get project path, ensuring it has a leading slash for full paths
+            const project = item.project;
+            const normalizedProject = project.startsWith('/') ? project : '/' + project;
+            
+            // Get just the folder name for partial matching
+            const folderName = project.split('/').pop();
+            
+            return activeSessions.some(a => {
+                // Exact match with full path
+                if (normalizedProject === a.cwd) return true;
+                
+                // CWD ends with the project path (handles relative paths)
+                if (a.cwd.endsWith(project)) return true;
+                
+                // CWD ends with the folder name (handles Claude Code which stores only folder name)
+                if (folderName && a.cwd.endsWith('/' + folderName)) return true;
+                
+                return false;
+            });
         }
 
         function startAutoRefresh() {
@@ -7841,9 +7859,28 @@
                 if (currentItem) openTagModal(currentItem.sessionId);
             });
             
-            // Copy ID Button
-            document.getElementById('propCopyId').addEventListener('click', () => {
-                if (currentItem) copyToClipboard(currentItem.sessionId, 'propCopyId', '');
+            // Copy ID Button - direct clipboard copy with visual feedback
+            document.getElementById('propCopyId').addEventListener('click', async () => {
+                if (!currentItem) return;
+                const btn = document.getElementById('propCopyId');
+                try {
+                    await navigator.clipboard.writeText(currentItem.sessionId);
+                    showToast('Session ID copied!', 2000);
+                    btn.style.color = 'var(--success)';
+                    setTimeout(() => btn.style.color = '', 1500);
+                } catch (err) {
+                    // Fallback
+                    const textarea = document.createElement('textarea');
+                    textarea.value = currentItem.sessionId;
+                    textarea.style.cssText = 'position:fixed;top:0;left:0;opacity:0;';
+                    document.body.appendChild(textarea);
+                    textarea.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(textarea);
+                    showToast('Session ID copied!', 2000);
+                    btn.style.color = 'var(--success)';
+                    setTimeout(() => btn.style.color = '', 1500);
+                }
             });
             
             // Action Links

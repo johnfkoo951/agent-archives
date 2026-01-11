@@ -720,44 +720,62 @@ async def serve_local_file(path: str):
 @app.get("/api/active-sessions")
 async def get_active_sessions():
     """실행 중인 Claude/OpenCode 세션의 작업 디렉토리 반환"""
-    import re
-    
     active_projects = []
     
     try:
         pgrep_result = subprocess.run(
-            ["pgrep", "-f", "^claude|^opencode$"],
-            capture_output=True, text=True
+            ["pgrep", "-f", "claude|opencode"],
+            capture_output=True, text=True, timeout=2
         )
-        pids = pgrep_result.stdout.strip().split('\n')
-        pids = [p for p in pids if p]
+        pids = [p for p in pgrep_result.stdout.strip().split('\n') if p]
+        
+        if not pids:
+            return {"active": []}
+        
+        pid_list = ','.join(pids)
+        lsof_result = subprocess.run(
+            ["lsof", "-d", "cwd", "-Fpn", "-p", pid_list],
+            capture_output=True, text=True, timeout=5
+        )
+        
+        # lsof -Fpn 파싱: p<pid>, fcwd, n<path> 순서
+        pid_cwd_map = {}
+        current_pid = None
+        is_cwd = False
+        for line in lsof_result.stdout.split('\n'):
+            if line.startswith('p'):
+                current_pid = line[1:]
+                is_cwd = False
+            elif line == 'fcwd':
+                is_cwd = True
+            elif line.startswith('n') and current_pid and is_cwd:
+                cwd = line[1:]
+                if cwd.startswith('/') and not cwd.startswith('/dev') and not cwd.startswith('/private/tmp'):
+                    pid_cwd_map[current_pid] = cwd
+                is_cwd = False
+        
+        ps_result = subprocess.run(
+            ["ps", "-p", pid_list, "-o", "pid=,comm="],
+            capture_output=True, text=True, timeout=2
+        )
+        
+        pid_cmd_map = {}
+        for line in ps_result.stdout.strip().split('\n'):
+            parts = line.split()
+            if len(parts) >= 2:
+                pid_cmd_map[parts[0]] = parts[1]
         
         for pid in pids:
-            try:
-                lsof_result = subprocess.run(
-                    ["lsof", "-p", pid],
-                    capture_output=True, text=True
-                )
-                for line in lsof_result.stdout.split('\n'):
-                    if ' cwd ' in line:
-                        parts = line.split()
-                        if len(parts) >= 9:
-                            cwd = parts[-1]
-                            ps_result = subprocess.run(
-                                ["ps", "-p", pid, "-o", "comm="],
-                                capture_output=True, text=True
-                            )
-                            cmd = ps_result.stdout.strip()
-                            if cwd and cwd.startswith('/'):
-                                active_projects.append({
-                                    "pid": int(pid),
-                                    "cwd": cwd,
-                                    "tool": "opencode" if "opencode" in cmd else "claude"
-                                })
-                        break
-            except:
-                continue
-    except:
+            if pid in pid_cwd_map:
+                cmd = pid_cmd_map.get(pid, '')
+                active_projects.append({
+                    "pid": int(pid),
+                    "cwd": pid_cwd_map[pid],
+                    "tool": "opencode" if "opencode" in cmd.lower() else "claude"
+                })
+    except subprocess.TimeoutExpired:
+        pass
+    except Exception:
         pass
     
     return {"active": active_projects}
