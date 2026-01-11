@@ -1,7 +1,7 @@
 {
-  "name": "claude-history-viewer",
-  "version": "1.0.0",
-  "description": "Claude Code Session History Viewer",
+  "name": "agent-archives",
+  "version": "1.1.0",
+  "description": "Agent Archives - Claude Code Session History Viewer",
   "main": "src/main.js",
   "author": "Yohan Koo",
   "license": "MIT",
@@ -12,8 +12,8 @@
     "build:all": "electron-builder --mac --win --linux"
   },
   "build": {
-    "appId": "com.cmdspace.claude-history-viewer",
-    "productName": "Claude History Viewer",
+    "appId": "com.cmdspace.agent-archives",
+    "productName": "Agent Archives",
     "directories": {
       "output": "dist"
     },
@@ -25,7 +25,15 @@
           "target": "dmg",
           "arch": ["arm64", "x64"]
         }
-      ]
+      ],
+      "extendInfo": {
+        "CFBundleURLTypes": [
+          {
+            "CFBundleURLName": "Agent Archives Session",
+            "CFBundleURLSchemes": ["agentarchives"]
+          }
+        ]
+      }
     },
     "win": {
       "target": "nsis",
@@ -48,6 +56,10 @@
       {
         "from": "../update-index.py",
         "to": "server/update-index.py"
+      },
+      {
+        "from": "../assets/",
+        "to": "assets/"
       }
     ]
   },

@@ -25,17 +25,15 @@ Safe-by-default:
   - Never overwrites an existing destination file; conflicts get renamed
 
 Usage:
-  python3 ~/.claude/migrate-claude-project-paths.py --apply
-
   # manual single move (repeat --pair as needed)
   python3 ~/.claude/migrate-claude-project-paths.py \\
-    --pair "/Users/joon/Desktop/old_project" "/Users/joon/Desktop/10_프로젝트/개발/old_project" \\
+    --pair "/path/to/old_project" "/path/to/new_project" \\
     --apply
 
-  # custom log paths
+  # using CSV log files
   python3 ~/.claude/migrate-claude-project-paths.py \\
-    --moves "/Users/joon/Desktop/99_보관/_정리로그/2025-12-15_001817_desktop_cleanup/moves.csv" \\
-    --corrections "/Users/joon/Desktop/99_보관/_정리로그/2025-12-15_001817_desktop_cleanup/moves_corrections.csv" \\
+    --moves "/path/to/moves.csv" \\
+    --corrections "/path/to/moves_corrections.csv" \\
     --apply
 """
 
@@ -239,12 +237,12 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Migrate Claude Code project session folders after path moves.")
     parser.add_argument(
         "--moves",
-        default="/Users/joon/Desktop/99_보관/_정리로그/2025-12-15_001817_desktop_cleanup/moves.csv",
-        help="Path to moves.csv from the Desktop cleanup log.",
+        default=None,
+        help="Path to moves.csv (records of moved directories).",
     )
     parser.add_argument(
         "--corrections",
-        default="/Users/joon/Desktop/99_보관/_정리로그/2025-12-15_001817_desktop_cleanup/moves_corrections.csv",
+        default=None,
         help="Path to moves_corrections.csv (optional; overrides moves.csv).",
     )
     parser.add_argument(
@@ -266,16 +264,16 @@ def main() -> int:
     claude_dir = default_claude_dir()
     projects_dir = claude_dir / "projects"
 
-    moves_path = Path(args.moves)
-    corrections_path = Path(args.corrections)
+    moves_path = Path(args.moves) if args.moves else None
+    corrections_path = Path(args.corrections) if args.corrections else None
 
     moves: List[Move] = []
-    if moves_path.exists():
+    if moves_path and moves_path.exists():
         moves = read_moves_csv(moves_path)
 
     mapping = build_dir_mapping(moves)
 
-    if corrections_path.exists():
+    if corrections_path and corrections_path.exists():
         corrections = read_moves_csv(corrections_path)
         mapping.update(build_dir_mapping(corrections))
 
@@ -285,8 +283,8 @@ def main() -> int:
             pair_moves.append(Move(src=src.rstrip("/"), dst=dst.rstrip("/"), kind="dir", reason="cli --pair"))
         mapping.update(build_dir_mapping(pair_moves))
 
-    if not moves_path.exists() and not pair_moves:
-        raise SystemExit(f"moves.csv not found: {moves_path} (and no --pair provided)")
+    if not moves and not pair_moves:
+        raise SystemExit("No moves provided. Use --moves <csv> or --pair <src> <dst>")
 
     candidates: List[Tuple[str, str, Path, Path]] = []
     for src, dst in sorted(mapping.items(), key=lambda kv: kv[0]):
@@ -306,9 +304,9 @@ def main() -> int:
     if not dry_run:
         safe_mkdir(migration_dir)
         safe_mkdir(backup_root)
-        if moves_path.exists():
+        if moves_path and moves_path.exists():
             shutil.copy2(moves_path, migration_dir / "moves.csv")
-        if corrections_path.exists():
+        if corrections_path and corrections_path.exists():
             shutil.copy2(corrections_path, migration_dir / "moves_corrections.csv")
         if pair_moves:
             write_moves_csv(pair_moves, migration_dir / "pairs.csv")

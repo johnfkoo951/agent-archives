@@ -76,19 +76,10 @@ def main():
             folder_cwd = get_folder_cwd(project_folder)
 
             if folder_cwd:
-                # Normalize for display (macOS may return decomposed Unicode paths).
                 project_name = unicodedata.normalize('NFC', folder_cwd).lstrip('/')
             else:
-                # Fallback: decode folder name
-                if folder_name.startswith('-Users-joon-Desktop-'):
-                    folder_part = folder_name[len('-Users-joon-Desktop-'):]
-                    project_name = f"Users/joon/Desktop/{folder_part}"
-                elif folder_name.startswith('-Users-joon-'):
-                    rest = folder_name[len('-Users-joon-'):]
-                    project_name = f"Users/joon/{rest}"
-                else:
-                    clean_folder = folder_name[1:] if folder_name.startswith('-') else folder_name
-                    project_name = clean_folder.replace('-', '/')
+                clean_folder = folder_name[1:] if folder_name.startswith('-') else folder_name
+                project_name = clean_folder.replace('-', '/')
 
             for jsonl_file in project_folder.glob('*.jsonl'):
                 if jsonl_file.name.startswith('agent-'):

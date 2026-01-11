@@ -5,8 +5,10 @@ const http = require('http');
 
 let mainWindow;
 let serverProcess;
+let pendingDeepLink = null; // Store deep link URL if app wasn't ready
 const SERVER_PORT = 8080;
 const SERVER_HOST = '127.0.0.1';
+const PROTOCOL = 'agentarchives';
 
 // Claude directory paths
 const CLAUDE_DIR = path.join(require('os').homedir(), '.claude');
@@ -18,8 +20,7 @@ function createWindow() {
     height: 900,
     minWidth: 800,
     minHeight: 600,
-    titleBarStyle: 'hiddenInset',
-    trafficLightPosition: { x: 15, y: 15 },
+    titleBarStyle: 'default',
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -29,9 +30,15 @@ function createWindow() {
     show: false
   });
 
-  // Show window when ready
   mainWindow.once('ready-to-show', () => {
     mainWindow.show();
+  });
+
+  mainWindow.webContents.once('did-finish-load', () => {
+    if (pendingDeepLink) {
+      mainWindow.webContents.send('deep-link', pendingDeepLink);
+      pendingDeepLink = null;
+    }
   });
 
   // Open external links in browser
@@ -76,54 +83,77 @@ function waitForServer(retries = 30, delay = 500) {
   });
 }
 
+function findPython() {
+  const { execSync } = require('child_process');
+  const fs = require('fs');
+  
+  const macOSPaths = [
+    '/usr/bin/python3',
+    '/opt/homebrew/bin/python3',
+    '/usr/local/bin/python3',
+  ];
+  
+  for (const p of macOSPaths) {
+    if (fs.existsSync(p)) return p;
+  }
+  
+  try {
+    const result = execSync('which python3', { encoding: 'utf8' }).trim();
+    if (result && fs.existsSync(result)) return result;
+  } catch (e) {}
+  
+  return 'python3';
+}
+
+const PYTHON_PATH = findPython();
+
 function startServer() {
   return new Promise((resolve, reject) => {
     const serverScript = path.join(HISTORY_DIR, 'history-server.py');
+    const updateScript = path.join(HISTORY_DIR, 'update-index.py');
 
-    // Try different Python paths
-    const pythonPaths = [
-      '/usr/bin/python3',
-      '/opt/homebrew/bin/python3',
-      'python3',
-      'python'
-    ];
+    console.log(`HISTORY_DIR: ${HISTORY_DIR}`);
+    console.log(`Server script: ${serverScript}`);
+    console.log(`Python: ${PYTHON_PATH}`);
 
-    let pythonPath = pythonPaths[0];
+    const spawnOpts = { cwd: HISTORY_DIR, env: process.env };
 
-    console.log(`Starting server: ${pythonPath} ${serverScript}`);
+    console.log('Updating index...');
+    const updateProcess = spawn(PYTHON_PATH, [updateScript], spawnOpts);
 
-    serverProcess = spawn(pythonPath, [
-      serverScript,
-      '--host', SERVER_HOST,
-      '--port', String(SERVER_PORT),
-      '--skip-index'
-    ], {
-      cwd: HISTORY_DIR,
-      env: { ...process.env }
+    updateProcess.on('close', (code) => {
+      console.log(`Index update finished with code ${code}`);
+
+      serverProcess = spawn(PYTHON_PATH, [
+        serverScript,
+        '--host', SERVER_HOST,
+        '--port', String(SERVER_PORT),
+        '--skip-index'
+      ], spawnOpts);
+
+      serverProcess.stdout.on('data', (data) => {
+        console.log(`Server: ${data}`);
+      });
+
+      serverProcess.stderr.on('data', (data) => {
+        console.error(`Server Error: ${data}`);
+      });
+
+      serverProcess.on('error', (err) => {
+        console.error('Failed to start server:', err);
+        reject(err);
+      });
+
+      serverProcess.on('close', (code) => {
+        console.log(`Server exited with code ${code}`);
+        serverProcess = null;
+      });
+
+      // Wait for server to be ready
+      waitForServer()
+        .then(resolve)
+        .catch(reject);
     });
-
-    serverProcess.stdout.on('data', (data) => {
-      console.log(`Server: ${data}`);
-    });
-
-    serverProcess.stderr.on('data', (data) => {
-      console.error(`Server Error: ${data}`);
-    });
-
-    serverProcess.on('error', (err) => {
-      console.error('Failed to start server:', err);
-      reject(err);
-    });
-
-    serverProcess.on('close', (code) => {
-      console.log(`Server exited with code ${code}`);
-      serverProcess = null;
-    });
-
-    // Wait for server to be ready
-    waitForServer()
-      .then(resolve)
-      .catch(reject);
   });
 }
 
@@ -133,6 +163,61 @@ function stopServer() {
     serverProcess.kill('SIGTERM');
     serverProcess = null;
   }
+}
+
+// Register as default protocol handler (for development)
+if (process.defaultApp) {
+  if (process.argv.length >= 2) {
+    app.setAsDefaultProtocolClient(PROTOCOL, process.execPath, [path.resolve(process.argv[1])]);
+  }
+} else {
+  app.setAsDefaultProtocolClient(PROTOCOL);
+}
+
+function parseDeepLink(url) {
+  if (!url || !url.startsWith(`${PROTOCOL}://`)) return null;
+  
+  const urlPath = url.replace(`${PROTOCOL}://`, '');
+  const [action, ...params] = urlPath.split('/');
+  
+  if (action === 'session' && params.length > 0) {
+    const sessionId = params[0].split('?')[0];
+    return { action: 'open-session', sessionId };
+  }
+  return null;
+}
+
+function handleDeepLink(url) {
+  const parsed = parseDeepLink(url);
+  if (!parsed) return;
+  
+  if (mainWindow && mainWindow.webContents) {
+    mainWindow.webContents.send('deep-link', parsed);
+    mainWindow.focus();
+  } else {
+    pendingDeepLink = parsed;
+  }
+}
+
+// macOS: Handle protocol URL when app is already running
+app.on('open-url', (event, url) => {
+  event.preventDefault();
+  handleDeepLink(url);
+});
+
+// Windows/Linux: Handle protocol URL from command line args
+const gotTheLock = app.requestSingleInstanceLock();
+if (!gotTheLock) {
+  app.quit();
+} else {
+  app.on('second-instance', (event, commandLine) => {
+    const url = commandLine.find(arg => arg.startsWith(`${PROTOCOL}://`));
+    if (url) handleDeepLink(url);
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.focus();
+    }
+  });
 }
 
 // App lifecycle

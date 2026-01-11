@@ -13,10 +13,12 @@ import json
 import argparse
 import subprocess
 import sys
+import mimetypes
+import urllib.parse
 from pathlib import Path
 from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Optional
@@ -33,13 +35,21 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 파일 경로
+# 파일 경로 - Claude Code
 CLAUDE_DIR = Path.home() / '.claude'
 HISTORY_DIR = CLAUDE_DIR / 'claude-history'
 TAGS_FILE = HISTORY_DIR / 'session-tags.json'
 NAMES_FILE = HISTORY_DIR / 'session-names.json'
 DESCRIPTIONS_FILE = HISTORY_DIR / 'session-descriptions.json'
 UPDATE_INDEX_SCRIPT = HISTORY_DIR / 'update-index.py'
+
+# 파일 경로 - OpenCode
+OPENCODE_DIR = Path.home() / '.local' / 'share' / 'opencode'
+OPENCODE_STORAGE_DIR = OPENCODE_DIR / 'storage'
+OPENCODE_SESSION_DIR = OPENCODE_STORAGE_DIR / 'session' / 'global'
+OPENCODE_MESSAGE_DIR = OPENCODE_STORAGE_DIR / 'message'
+OPENCODE_PART_DIR = OPENCODE_STORAGE_DIR / 'part'
+OPENCODE_LOG_DIR = OPENCODE_DIR / 'log'
 
 # Pydantic 모델
 class AddTagsRequest(BaseModel):
@@ -49,6 +59,10 @@ class AddTagsRequest(BaseModel):
 class RemoveTagRequest(BaseModel):
     session_id: str
     tag: str
+
+class DownloadRequest(BaseModel):
+    content: str
+    filename: str
 
 class TagsResponse(BaseModel):
     session_id: str
@@ -87,14 +101,14 @@ class DeleteResponse(BaseModel):
 
 class ResumeRequest(BaseModel):
     session_id: str
-    project_path: str  # 프로젝트 경로 (cwd)
+    project_path: str  # Project path (cwd)
     skip_permissions: bool = False
-    open_in: str = "tab"  # "tab" or "window"
+    terminal_app: str = "iterm2"  # "terminal", "iterm2", or "warp"
 
 class ResumeResponse(BaseModel):
     session_id: str
     success: bool
-    open_in: str
+    terminal_app: str
 
 # 헬퍼 함수
 def load_tags() -> dict:
@@ -361,37 +375,67 @@ async def delete_session(request: DeleteRequest):
 # Resume API 엔드포인트
 @app.post("/api/resume")
 async def resume_session(request: ResumeRequest):
-    """iTerm2에서 세션 재개"""
-    # claude 명령어 구성
+    """Resume session in selected terminal app"""
+    # Build claude command
     if request.skip_permissions:
         claude_cmd = f"claude --resume {request.session_id} --dangerously-skip-permissions"
     else:
         claude_cmd = f"claude --resume {request.session_id}"
 
-    # 프로젝트 경로로 이동 후 claude 실행
-    full_cmd = f"cd {request.project_path} && {claude_cmd}"
+    # Escape path properly for shell
+    # For single quotes: escape ' as '\''
+    escaped_path_sq = request.project_path.replace("'", "'\\''")
 
-    # AppleScript 구성
-    if request.open_in == "window":
+    # Build AppleScript based on terminal app
+    if request.terminal_app == "terminal":
+        # Terminal: use single quotes for path (works with AppleScript)
+        full_cmd = f"cd '{escaped_path_sq}' && {claude_cmd}"
         applescript = f'''
-        tell application "iTerm2"
-            create window with default profile
-            tell current session of current window
-                write text "{full_cmd}"
-            end tell
+        tell application "Terminal"
             activate
+            do script "{full_cmd}"
         end tell
         '''
-    else:  # tab
+    elif request.terminal_app == "warp":
+        # Warp: write command with double quotes to temp file, then cat|pbcopy
+        # This avoids all escaping issues
+        full_cmd_warp = f'cd "{request.project_path}" && {claude_cmd}'
+        # Write to temp file to avoid escaping issues
+        tmp_file = "/tmp/claude_warp_cmd.txt"
+        with open(tmp_file, 'w') as f:
+            f.write(full_cmd_warp)
+
+        applescript = f'''
+        tell application "Warp"
+            activate
+        end tell
+        delay 0.5
+        tell application "System Events"
+            tell process "Warp"
+                keystroke "t" using command down
+                delay 0.3
+            end tell
+        end tell
+        do shell script "cat /tmp/claude_warp_cmd.txt | pbcopy"
+        delay 0.2
+        tell application "System Events"
+            tell process "Warp"
+                keystroke "v" using command down
+                delay 0.3
+                keystroke return
+            end tell
+        end tell
+        '''
+    else:  # iterm2 (default)
+        # iTerm2: use single quotes for path (works with AppleScript)
+        full_cmd = f"cd '{escaped_path_sq}' && {claude_cmd}"
         applescript = f'''
         tell application "iTerm2"
-            tell current window
-                create tab with default profile
-                tell current session
-                    write text "{full_cmd}"
-                end tell
-            end tell
             activate
+            set newWindow to (create window with default profile)
+            tell current session of newWindow
+                write text "{full_cmd}"
+            end tell
         end tell
         '''
 
@@ -408,7 +452,7 @@ async def resume_session(request: ResumeRequest):
         return ResumeResponse(
             session_id=request.session_id,
             success=True,
-            open_in=request.open_in
+            terminal_app=request.terminal_app
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to open iTerm2: {str(e)}")
@@ -444,8 +488,241 @@ async def session_descriptions_file():
         return FileResponse(DESCRIPTIONS_FILE)
     return JSONResponse({})
 
+# ============== OpenCode API 엔드포인트 ==============
+
+@app.get("/api/opencode/sessions")
+async def get_opencode_sessions():
+    """OpenCode 세션 목록 조회"""
+    if not OPENCODE_SESSION_DIR.exists():
+        return JSONResponse([])
+
+    sessions = []
+    for session_file in OPENCODE_SESSION_DIR.glob("ses_*.json"):
+        try:
+            with open(session_file, 'r', encoding='utf-8') as f:
+                session_data = json.load(f)
+
+            session_id = session_data.get('id', session_file.stem)
+
+            # Count messages for this session
+            msg_count = 0
+            msg_dir = OPENCODE_MESSAGE_DIR / session_id
+            if msg_dir.exists():
+                msg_count = len(list(msg_dir.glob("msg_*.json")))
+
+            # Convert timestamps (ms to ISO string)
+            time_data = session_data.get('time', {})
+            created_ts = time_data.get('created', 0)
+            updated_ts = time_data.get('updated', 0)
+
+            from datetime import datetime
+            created_str = datetime.fromtimestamp(created_ts / 1000).isoformat() if created_ts else None
+            updated_str = datetime.fromtimestamp(updated_ts / 1000).isoformat() if updated_ts else None
+
+            sessions.append({
+                "sessionId": session_id,
+                "project": session_data.get('directory', ''),
+                "title": session_data.get('title', 'Untitled Session'),
+                "lastActivity": updated_str,
+                "createdAt": created_str,
+                "messageCount": msg_count,
+                "parentId": session_data.get('parentID'),
+                "version": session_data.get('version'),
+                "model": None  # Will be populated from messages if needed
+            })
+        except Exception as e:
+            print(f"Error loading OpenCode session {session_file}: {e}")
+            continue
+
+    # Sort by lastActivity (most recent first)
+    sessions.sort(key=lambda x: x.get('lastActivity') or '', reverse=True)
+    return JSONResponse(sessions)
+
+@app.get("/api/opencode/session/{session_id}")
+async def get_opencode_session_messages(session_id: str):
+    """OpenCode 특정 세션의 메시지 목록 조회"""
+    msg_dir = OPENCODE_MESSAGE_DIR / session_id
+
+    if not msg_dir.exists():
+        raise HTTPException(status_code=404, detail=f"Session {session_id} not found")
+
+    messages = []
+    for msg_file in sorted(msg_dir.glob("msg_*.json")):
+        try:
+            with open(msg_file, 'r', encoding='utf-8') as f:
+                msg_data = json.load(f)
+
+            # Load message parts if needed
+            msg_id = msg_data.get('id')
+            parts = []
+
+            # Check for parts in the part directory (OpenCode stores parts in folders)
+            # Structure: storage/part/{msg_id}/prt_*.json
+            part_dir = OPENCODE_PART_DIR / msg_id
+            if part_dir.exists() and part_dir.is_dir():
+                try:
+                    for prt_file in sorted(part_dir.glob("prt_*.json")):
+                        with open(prt_file, 'r', encoding='utf-8') as f:
+                            part_data = json.load(f)
+                        parts.append(part_data)
+                except Exception as e:
+                    print(f"Error loading parts for {msg_id}: {e}")
+
+            # Convert timestamp
+            time_data = msg_data.get('time', {})
+            created_ts = time_data.get('created', 0)
+            from datetime import datetime
+            created_str = datetime.fromtimestamp(created_ts / 1000).isoformat() if created_ts else None
+
+            # Extract model info
+            model_info = msg_data.get('model', {})
+
+            messages.append({
+                "id": msg_id,
+                "sessionId": session_id,
+                "role": msg_data.get('role', 'unknown'),
+                "timestamp": created_str,
+                "summary": msg_data.get('summary', {}),
+                "agent": msg_data.get('agent'),
+                "model": {
+                    "provider": model_info.get('providerID'),
+                    "model": model_info.get('modelID')
+                },
+                "tools": msg_data.get('tools', {}),
+                "parts": parts
+            })
+        except Exception as e:
+            print(f"Error loading message {msg_file}: {e}")
+            continue
+
+    return JSONResponse(messages)
+
+@app.get("/api/opencode/session/{session_id}/content")
+async def get_opencode_session_content(session_id: str):
+    """OpenCode 세션 전체 내용 (Claude JSONL 형식과 유사하게 변환)"""
+    msg_dir = OPENCODE_MESSAGE_DIR / session_id
+
+    if not msg_dir.exists():
+        raise HTTPException(status_code=404, detail=f"Session {session_id} not found")
+
+    content_lines = []
+    for msg_file in sorted(msg_dir.glob("msg_*.json")):
+        try:
+            with open(msg_file, 'r', encoding='utf-8') as f:
+                msg_data = json.load(f)
+
+            msg_id = msg_data.get('id')
+            role = msg_data.get('role', 'unknown')
+
+            # Load parts for actual content (OpenCode stores parts in folders)
+            # Structure: storage/part/{msg_id}/prt_*.json
+            parts_content = []
+            part_dir = OPENCODE_PART_DIR / msg_id
+            if part_dir.exists() and part_dir.is_dir():
+                try:
+                    for prt_file in sorted(part_dir.glob("prt_*.json")):
+                        with open(prt_file, 'r', encoding='utf-8') as f:
+                            part_data = json.load(f)
+                        # Convert to Claude-like content format
+                        if part_data.get('type') == 'text':
+                            parts_content.append({
+                                "type": "text",
+                                "text": part_data.get('text', '')
+                            })
+                        elif part_data.get('type') == 'tool_use':
+                            parts_content.append({
+                                "type": "tool_use",
+                                "name": part_data.get('name', 'tool'),
+                                "input": part_data.get('input', {})
+                            })
+                        elif part_data.get('type') == 'tool_result':
+                            parts_content.append({
+                                "type": "tool_result",
+                                "content": part_data.get('content', '')
+                            })
+                        else:
+                            parts_content.append(part_data)
+                except Exception as e:
+                    print(f"Error loading parts for content {msg_id}: {e}")
+
+            # Format similar to Claude JSONL
+            formatted_msg = {
+                "type": role,
+                "message": {
+                    "id": msg_id,
+                    "role": role,
+                    "content": parts_content,
+                    "model": msg_data.get('model', {}).get('modelID'),
+                },
+                "timestamp": msg_data.get('time', {}).get('created')
+            }
+            content_lines.append(formatted_msg)
+        except Exception as e:
+            print(f"Error loading message content {msg_file}: {e}")
+            continue
+
+    return JSONResponse(content_lines)
+
+# ============== End OpenCode API ==============
+
+# Download API 엔드포인트 (마크다운 다운로드)
+@app.post("/api/download")
+async def download_file(request: DownloadRequest):
+    """마크다운 파일 다운로드"""
+    # 파일명에서 위험 문자 제거
+    safe_filename = request.filename.replace('/', '_').replace('\\', '_')
+    if not safe_filename.endswith('.md'):
+        safe_filename += '.md'
+
+    # RFC 5987 방식으로 파일명 인코딩 (한글 파일명 지원)
+    encoded_filename = urllib.parse.quote(safe_filename)
+
+    return Response(
+        content=request.content.encode('utf-8'),
+        media_type='application/octet-stream',
+        headers={
+            'Content-Disposition': f"attachment; filename*=UTF-8''{encoded_filename}",
+            'Content-Length': str(len(request.content.encode('utf-8')))
+        }
+    )
+
+# 로컬 이미지/파일 서빙 API
+@app.get("/api/local-file")
+async def serve_local_file(path: str):
+    """로컬 파일 시스템의 파일을 서빙 (이미지, PDF 등)"""
+    try:
+        # URL 디코딩
+        decoded_path = urllib.parse.unquote(path)
+        file_path = Path(decoded_path)
+
+        if not file_path.exists():
+            raise HTTPException(status_code=404, detail=f"File not found: {decoded_path}")
+
+        if not file_path.is_file():
+            raise HTTPException(status_code=400, detail="Path is not a file")
+
+        # MIME 타입 감지
+        mime_type, _ = mimetypes.guess_type(str(file_path))
+        if mime_type is None:
+            mime_type = 'application/octet-stream'
+
+        return FileResponse(
+            path=str(file_path),
+            media_type=mime_type,
+            filename=file_path.name
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 # projects 폴더 정적 파일 서빙
 app.mount("/projects", StaticFiles(directory=str(CLAUDE_DIR / 'projects')), name="projects")
+
+# assets 폴더 정적 파일 서빙 (로고 등)
+ASSETS_DIR = HISTORY_DIR / "assets"
+if ASSETS_DIR.exists():
+    app.mount("/assets", StaticFiles(directory=str(ASSETS_DIR)), name="assets")
 
 def main():
     parser = argparse.ArgumentParser(description='Claude History Viewer Server')
