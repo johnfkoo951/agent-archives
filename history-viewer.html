@@ -744,6 +744,27 @@
             color: var(--text-muted);
         }
 
+        .active-badge {
+            background: rgba(34, 197, 94, 0.2);
+            color: #22c55e;
+            font-size: 10px;
+            font-weight: 600;
+            padding: 2px 6px;
+            border-radius: 10px;
+            margin-right: 6px;
+            animation: pulse-active 2s infinite;
+        }
+
+        @keyframes pulse-active {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+
+        [data-theme="dark"] .active-badge {
+            background: rgba(34, 197, 94, 0.15);
+            color: #4ade80;
+        }
+
         .session-messages {
             font-size: 11px;
             color: var(--text-muted);
@@ -4848,6 +4869,8 @@
         let conversationSearchQuery = '';
         let showType = 'all'; // 'all', 'sessions', 'history'
         let searchScope = 'all';  // 'all', 'title', 'content', 'title_content', 'tags', 'description'
+        let activeSessions = [];  // List of active session cwds from running processes
+        let autoRefreshInterval = null;
 
         // Initialize
         document.addEventListener('DOMContentLoaded', async () => {
@@ -4856,6 +4879,7 @@
             await loadSessionIndex();
             setupEventListeners();
             setupDeepLinkHandler();
+            startAutoRefresh();
             
             // Restore sidebar state
             if (localStorage.getItem('sidebar-collapsed') === 'true') {
@@ -5118,6 +5142,7 @@
                     ? `${totalMessages} msgs`
                     : `${totalMessages} msgs + ${historyOnly.length} history`;
 
+                await fetchActiveSessions();
                 applyFilters();
                 buildProjectFilter();
                 buildTagFilter();
@@ -5207,6 +5232,37 @@
                 insightEl.textContent = insights.slice(0, 2).join(' · ');
             } else {
                 insightEl.textContent = 'Start a session to see insights';
+            }
+        }
+
+        async function fetchActiveSessions() {
+            try {
+                const response = await fetch('/api/active-sessions');
+                const data = await response.json();
+                activeSessions = data.active || [];
+            } catch (error) {
+                activeSessions = [];
+            }
+        }
+
+        function isSessionActive(item) {
+            if (!item.project || activeSessions.length === 0) return false;
+            const normalizedProject = '/' + item.project.replace(/^\/+/, '');
+            return activeSessions.some(a => normalizedProject === a.cwd || a.cwd.endsWith(item.project));
+        }
+
+        function startAutoRefresh() {
+            if (autoRefreshInterval) {
+                clearInterval(autoRefreshInterval);
+                autoRefreshInterval = null;
+            }
+            
+            const interval = parseInt(localStorage.getItem('settings-auto-refresh') || '60');
+            if (interval > 0) {
+                autoRefreshInterval = setInterval(async () => {
+                    await fetchActiveSessions();
+                    renderSessionList();
+                }, interval * 1000);
             }
         }
 
@@ -7545,6 +7601,7 @@
                                     </div>
                                     
                                     <div class="session-meta-row">
+                                        ${isSessionActive(item) ? '<span class="active-badge">● Active</span>' : ''}
                                         <span class="session-time">${relativeTime}</span>
                                         <span class="session-time" style="opacity:0.5">•</span>
                                         <span class="session-time">${item.messageCount || 0} msgs</span>
