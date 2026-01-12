@@ -780,6 +780,27 @@ async def get_active_sessions():
     
     return {"active": active_projects}
 
+# Usage API - ccusage 통합 (MIT License: github.com/ryoppippi/ccusage)
+@app.get("/api/usage/{period}")
+async def get_usage(period: str):
+    """ccusage를 사용한 토큰 사용량 조회 (daily, monthly, weekly)"""
+    if period not in ["daily", "monthly", "weekly"]:
+        raise HTTPException(status_code=400, detail="Invalid period. Use: daily, monthly, weekly")
+    
+    try:
+        result = subprocess.run(
+            ["npx", "ccusage@latest", period, "--json"],
+            capture_output=True, text=True, timeout=30
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            import json
+            return json.loads(result.stdout)
+        return {period: [], "error": "No data or ccusage not available"}
+    except subprocess.TimeoutExpired:
+        return {period: [], "error": "Timeout"}
+    except Exception as e:
+        return {period: [], "error": str(e)}
+
 # projects 폴더 정적 파일 서빙
 app.mount("/projects", StaticFiles(directory=str(CLAUDE_DIR / 'projects')), name="projects")
 
