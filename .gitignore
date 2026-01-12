@@ -34,3 +34,4 @@ npm-debug.log*
 DerivedData/
 *.xcuserstate
 xcuserdata/
+native/AgentArchives/build/

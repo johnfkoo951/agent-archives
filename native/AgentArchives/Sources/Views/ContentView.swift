@@ -8,6 +8,7 @@ struct ContentView: View {
         
         NavigationSplitView {
             SidebarView()
+                .navigationSplitViewColumnWidth(min: 280, ideal: 320, max: 400)
         } detail: {
             DetailView()
         }

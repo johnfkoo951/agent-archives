@@ -8,9 +8,13 @@ struct AgentArchivesApp: App {
         WindowGroup {
             ContentView()
                 .environment(appState)
+                .onOpenURL { url in
+                    handleDeepLink(url)
+                }
         }
         .windowStyle(.automatic)
         .defaultSize(width: 1200, height: 800)
+        .handlesExternalEvents(matching: ["agentarchives"])
         .commands {
             CommandGroup(replacing: .newItem) { }
             
@@ -49,6 +53,17 @@ struct AgentArchivesApp: App {
         Settings {
             SettingsView()
                 .environment(appState)
+        }
+    }
+    
+    private func handleDeepLink(_ url: URL) {
+        guard url.scheme == "agentarchives" else { return }
+        
+        if url.host == "session", let sessionId = url.pathComponents.dropFirst().first {
+            if let session = appState.sessions.first(where: { $0.id == sessionId }) {
+                appState.selectedSession = session
+                appState.selectedTab = .sessions
+            }
         }
     }
 }
