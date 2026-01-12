@@ -27,3 +27,10 @@ npm-debug.log*
 # Temporary
 *.tmp
 *.temp
+
+# Swift / Xcode
+.build/
+.swiftpm/
+DerivedData/
+*.xcuserstate
+xcuserdata/
