@@ -33,7 +33,29 @@ Claude Code와 OpenCode 세션 히스토리를 탐색하는 macOS 데스크톱 �
 2. DMG 열고 `Agent Archives.app`을 Applications 폴더로 드래그
 3. 앱 실행
 
-> ⚠️ "개발자를 확인할 수 없습니다" 경고 시: 시스템 설정 → 개인정보 보호 및 보안 → "확인 없이 열기" 클릭
+### ⚠️ macOS 보안 경고 해결
+
+이 앱은 Apple 개발자 인증서로 서명되지 않은 오픈소스 프로젝트입니다. macOS Gatekeeper가 실행을 차단할 수 있습니다.
+
+**"개발자를 확인할 수 없습니다"** 또는 **"앱이 손상되었습니다"** 경고가 나타나면:
+
+#### 방법 1: 우클릭으로 열기 (가장 간단)
+1. Applications 폴더에서 `Agent Archives.app` **우클릭** (또는 Control+클릭)
+2. **열기** 선택
+3. 경고창에서 **열기** 클릭
+
+#### 방법 2: 터미널에서 Gatekeeper 우회
+```bash
+xattr -cr "/Applications/Agent Archives.app"
+open "/Applications/Agent Archives.app"
+```
+
+#### 방법 3: 시스템 설정에서 허용
+1. 앱 실행 시도 (경고 발생)
+2. **시스템 설정** → **개인정보 보호 및 보안**
+3. 하단 **"Agent Archives" 앱이 차단됨** 메시지 옆 **"확인 없이 열기"** 클릭
+
+> 💡 이는 보안 취약점이 아닌 Apple의 앱 배포 정책 때문입니다. 오픈소스이므로 [소스코드](https://github.com/johnfkoo951/agent-archives)를 직접 확인할 수 있습니다.
 
 ## 기능
 
